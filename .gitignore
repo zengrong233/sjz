@@ -1,0 +1,79 @@
+# Ignore model weights and checkpoints
+*.pt
+*.pth
+*.pt.tar
+*.ckpt
+weights/
+**/weights/
+
+# Ignore datasets (do not upload datasets)
+/datasets/
+/datasets/**
+
+# Ignore runs, experiment outputs and logs
+/runs/
+/runs/**
+/log/
+/logs/
+/results/
+/output/
+exp*/
+detect/
+detect/**
+
+# Caches, checkpoints, temporary files
+__pycache__/
+*.py[cod]
+*$py.class
+.cache/
+*.cache
+*.tmp
+tmp/
+temp/
+
+# Python virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Pytest cache
+.pytest_cache/
+
+# IDE/editor folders
+.vscode/
+.idea/
+
+# Environment files
+.env
+.env.*
+
+# Build/dist
+build/
+dist/
+*.egg-info/
+
+# Logs and coverage
+*.log
+.coverage
+htmlcov/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Large model export / runtime files
+*.onnx
+*.engine
+*.tflite
+*.pb
+
+# Keep repository small: ignore any large binary artifacts
+*.bin
+*.tar
+*.zip
+
+# End of .gitignore
