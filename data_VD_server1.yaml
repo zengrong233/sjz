@@ -1,0 +1,19 @@
+# VisDrone2019-DET 数据集配置 - 第一台云服务器
+
+path: /root/ultralyticsPro--YOLO11/datasets/1000
+train: images/VD_train
+val: images/VD_val
+test: images/VD_test
+
+nc: 10
+names:
+  0: pedestrian
+  1: people
+  2: bicycle
+  3: car
+  4: van
+  5: truck
+  6: tricycle
+  7: awning-tricycle
+  8: bus
+  9: motor

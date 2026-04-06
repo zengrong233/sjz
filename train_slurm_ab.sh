@@ -21,22 +21,26 @@
 # ---------- 路径配置 ----------
 PROJECT_DIR="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
 CONDA_ENV="yolov11_py310"
+SERVER_ID="${SERVER_ID:-server2}"
 
 # ---------- 训练模式 ----------
 TRAINER_MODE="${1:-full}"
 DATASET="${2:-${DATASET:-visdrone}}"
 
 resolve_data_yaml() {
-  case "$1" in
-    visdrone|vd) echo "data_VD_slurm.yaml" ;;
-    uavdt) echo "data_UAVDT_slurm.yaml" ;;
-    tinyperson|tiny) echo "data_TinyPerson_slurm.yaml" ;;
+  local dataset="$1"
+  local server_id="$2"
+
+  case "$dataset" in
+    visdrone|vd) echo "data_VD_${server_id}.yaml" ;;
+    uavdt) echo "data_UAVDT_${server_id}.yaml" ;;
+    tinyperson|tiny) echo "data_TinyPerson_${server_id}.yaml" ;;
     *) return 1 ;;
   esac
 }
 
 if [ -z "${DATA_YAML:-}" ]; then
-  DATA_YAML="$(resolve_data_yaml "${DATASET}")" || {
+  DATA_YAML="$(resolve_data_yaml "${DATASET}" "${SERVER_ID}")" || {
     echo "未知数据集: ${DATASET}"
     echo "可用: visdrone | uavdt | tinyperson"
     exit 1
@@ -61,6 +65,7 @@ echo "节点: ${SLURM_NODELIST}"
 echo "GPU: ${CUDA_VISIBLE_DEVICES}"
 echo "训练模式: ${TRAINER_MODE}"
 echo "数据集: ${DATASET}"
+echo "服务器配置: ${SERVER_ID}"
 echo "数据 YAML: ${DATA_YAML}"
 echo "============================================"
 nvidia-smi

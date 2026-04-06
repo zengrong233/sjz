@@ -1,0 +1,11 @@
+# TinyPerson 数据集配置 - 第一台云服务器
+
+path: /root/ultralyticsPro--YOLO11/datasets/1000_TinyPerson
+train: images/VD_train
+val: images/VD_val
+test: images/VD_test
+
+nc: 2
+names:
+  0: earth_person
+  1: sea_person

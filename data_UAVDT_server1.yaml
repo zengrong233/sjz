@@ -1,0 +1,12 @@
+# UAVDT 数据集配置 - 第一台云服务器
+
+path: /root/ultralyticsPro--YOLO11/datasets/1000_UAVDT
+train: images/VD_train
+val: images/VD_test
+test: images/VD_test
+
+nc: 3
+names:
+  0: car
+  1: truck
+  2: bus
