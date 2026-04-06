@@ -1,7 +1,8 @@
 #!/bin/bash
-# Local runner converted from train_slurm_ab.sh
-# Usage: ./train_local.sh [mode]
+# Local runner
+# Usage: ./train_local.sh [mode] [dataset]
 # mode: baseline | ab | full
+# dataset: visdrone | uavdt | tinyperson
 # legacy aliases: baseline_prr -> baseline, prr_ab -> ab
 
 set -euo pipefail
@@ -10,8 +11,25 @@ set -euo pipefail
 PROJECT_DIR="${PROJECT_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 CONDA_ENV="${CONDA_ENV:-yolov11}"
 TRAINER_MODE="${1:-full}"
+DATASET="${2:-${DATASET:-visdrone}}"
 DEVICE="${DEVICE:-0}"
-DATA_YAML="${DATA_YAML:-data_VD_slurm.yaml}"
+
+resolve_data_yaml() {
+  case "$1" in
+    visdrone|vd) echo "data_VD.yaml" ;;
+    uavdt) echo "data_UAVDT.yaml" ;;
+    tinyperson|tiny) echo "data_TinyPerson.yaml" ;;
+    *) return 1 ;;
+  esac
+}
+
+if [ -z "${DATA_YAML:-}" ]; then
+  DATA_YAML="$(resolve_data_yaml "${DATASET}")" || {
+    echo "未知数据集: ${DATASET}"
+    echo "可用: visdrone | uavdt | tinyperson"
+    exit 1
+  }
+fi
 
 # Try to source conda if available (common miniconda location in this workspace)
 if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
@@ -37,6 +55,8 @@ echo "============================================"
 echo "Host: $(hostname)"
 echo "GPU(s): ${CUDA_VISIBLE_DEVICES:-$DEVICE}"
 echo "Trainer mode: ${TRAINER_MODE}"
+echo "Dataset: ${DATASET}"
+echo "Data yaml: ${DATA_YAML}"
 echo "Project dir: ${PROJECT_DIR}"
 echo "============================================"
 nvidia-smi || true
