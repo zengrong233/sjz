@@ -4,7 +4,7 @@
 #   images/VD_train, images/VD_test
 #   labels/VD_train, labels/VD_test
 
-path: /root/ultralyticsPro--YOLO11/datasets/1000_UAVDT
+path: /share/home/u2415363072/4.6/ultralyticsPro--YOLO11/datasets/1000_UAVDT
 train: images/VD_train
 val: images/VD_test
 test: images/VD_test

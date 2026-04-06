@@ -7,7 +7,7 @@
 # 0=earth-person, 1=sea-person
 
 # TinyPerson 最终版 - 绝对路径，零错误
-path: /root/ultralyticsPro--YOLO11/datasets/1000_TinyPerson  # 必须用绝对路径
+path: /share/home/u2415363072/4.6/ultralyticsPro--YOLO11/datasets/1000_TinyPerson  # 必须用绝对路径
 train: images/VD_train
 val: images/VD_val
 test: images/VD_test

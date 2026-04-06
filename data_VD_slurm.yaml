@@ -1,7 +1,7 @@
 # VisDrone2019-DET 数据集配置 - 超算环境
 # 路径相对于项目根目录
 
-path: /root/ultralyticsPro--YOLO11/datasets/1000
+path: /share/home/u2415363072/4.6/ultralyticsPro--YOLO11/datasets/1000
 train: images/VD_train
 val: images/VD_val
 test: images/VD_test

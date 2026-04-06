@@ -20,7 +20,7 @@
 
 # ---------- 路径配置 ----------
 PROJECT_DIR="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
-CONDA_ENV="yolov11"
+CONDA_ENV="yolov11_py310"
 
 # ---------- 训练模式 ----------
 TRAINER_MODE="${1:-full}"
