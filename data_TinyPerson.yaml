@@ -7,9 +7,9 @@
 # 0=earth-person, 1=sea-person
 
 path: C:/Users/86155/Desktop/1000_TinyPerson
-train: images/train
-val: images/val
-test: images/val
+train: images/VD_train
+val: images/VD_test
+test: images/VD_test
 
 nc: 2
 names:

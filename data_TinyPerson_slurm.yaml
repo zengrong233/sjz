@@ -6,12 +6,13 @@
 # Class mapping follows TinyPerson paper statistics and local YOLO labels:
 # 0=earth-person, 1=sea-person
 
-path: /root/ultralyticsPro--YOLO11/datasets/1000_TinyPerson
-train: images/train
-val: images/val
-test: images/val
+# TinyPerson 最终版 - 绝对路径，零错误
+path: /root/ultralyticsPro--YOLO11/datasets/1000_TinyPerson  # 必须用绝对路径
+train: images/VD_train
+val: images/VD_val
+test: images/VD_test
 
-nc: 2
+nc: 2  
 names:
-  0: earth-person
-  1: sea-person
+  0: earth_person
+  1: sea_person
