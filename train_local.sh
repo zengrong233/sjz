@@ -15,10 +15,22 @@ DATASET="${2:-${DATASET:-visdrone}}"
 DEVICE="${DEVICE:-0}"
 
 resolve_data_yaml() {
-  case "$1" in
-    visdrone|vd) echo "data_VD.yaml" ;;
-    uavdt) echo "data_UAVDT.yaml" ;;
-    tinyperson|tiny) echo "data_TinyPerson.yaml" ;;
+  local dataset="$1"
+  local platform="windows"
+  case "$(uname -s 2>/dev/null || echo unknown)" in
+    Linux*|Darwin*) platform="linux" ;;
+  esac
+
+  case "$dataset" in
+    visdrone|vd)
+      [ "$platform" = "linux" ] && echo "data_VD_slurm.yaml" || echo "data_VD.yaml"
+      ;;
+    uavdt)
+      [ "$platform" = "linux" ] && echo "data_UAVDT_slurm.yaml" || echo "data_UAVDT.yaml"
+      ;;
+    tinyperson|tiny)
+      [ "$platform" = "linux" ] && echo "data_TinyPerson_slurm.yaml" || echo "data_TinyPerson.yaml"
+      ;;
     *) return 1 ;;
   esac
 }
