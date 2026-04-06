@@ -8,6 +8,8 @@ from ultralytics import YOLO
 
 warnings.filterwarnings("ignore")
 
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 def main(opt):
     # 检查CUDA是否可用
     if not torch.cuda.is_available():
@@ -44,15 +46,15 @@ def parse_opt(known=False):
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', 
                        type=str, 
-                       default=r'/share/home/u2415363072/sjz/ultralyticsPro--YOLO11/YOLO11-P2-Simple.yaml', 
+                       default=os.path.join(PROJECT_DIR, 'YOLO11-P2-Simple.yaml'),
                        help='model yaml path')
     parser.add_argument('--weights', 
                        type=str, 
-                       default=r'/share/home/u2415363072/sjz/ultralyticsPro--YOLO11/yolo11n.pt', 
+                       default=os.path.join(PROJECT_DIR, 'yolo11n.pt'),
                        help='initial weights path')
     parser.add_argument('--data',
                        type=str,
-                       default=r'/share/home/u2415363072/sjz/ultralyticsPro--YOLO11/data_VD.yaml',
+                       default=os.path.join(PROJECT_DIR, 'data_VD.yaml'),
                        help='dataset yaml path')
     parser.add_argument('--device', 
                        type=str,
