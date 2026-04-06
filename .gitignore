@@ -20,6 +20,8 @@ weights/
 exp*/
 detect/
 detect/**
+!ultralytics/models/yolo/detect/
+!ultralytics/models/yolo/detect/**
 
 # Caches, checkpoints, temporary files
 __pycache__/
