@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH -J yolo11_prr       # 作业名称
-#SBATCH -p gpu               # 队列: gpu
-#SBATCH -N 1                 # 节点数
-#SBATCH -n 1                 # 进程数
-#SBATCH --gres=gpu:1         # GPU 卡数
+#SBATCH -p gpu              # 队列: gpu
+#SBATCH -N 1                # 节点数
+#SBATCH -n 1                # 进程数
+#SBATCH --gres=gpu:1        # GPU 卡数
 #SBATCH -o logs/slurm_%j.out # 标准输出+错误合并到一个文件
 #SBATCH -e logs/slurm_%j.out # stderr 也写入同一文件
 
