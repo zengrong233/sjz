@@ -19,7 +19,7 @@
 # ============================================================
 
 # ---------- 路径配置 ----------
-PROJECT_DIR="${PROJECT_DIR:-$(cd "$(dirname "$0")" && pwd)}"
+PROJECT_DIR="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
 CONDA_ENV="yolov11"
 
 # ---------- 训练模式 ----------
