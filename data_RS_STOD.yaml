@@ -1,0 +1,14 @@
+# RS-STOD dataset config - local Windows
+
+path: C:/Users/86155/Desktop/水经注/代码/2026.4.5/ultralyticsPro--YOLO11/datasets/RS-STOD
+train: images/train
+val: images/val
+test: images/test
+
+nc: 5
+names:
+  0: Small Vehicle
+  1: Large Vehicle
+  2: Ship
+  3: Airplane
+  4: Storage Tank
