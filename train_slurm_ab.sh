@@ -35,6 +35,7 @@ resolve_data_yaml() {
     visdrone|vd) echo "data_VD_${server_id}.yaml" ;;
     uavdt) echo "data_UAVDT_${server_id}.yaml" ;;
     tinyperson|tiny) echo "data_TinyPerson_${server_id}.yaml" ;;
+    rsstod|rs-stod|rs_stod) echo "data_RS_STOD_${server_id}.yaml" ;;
     *) return 1 ;;
   esac
 }
@@ -42,7 +43,7 @@ resolve_data_yaml() {
 if [ -z "${DATA_YAML:-}" ]; then
   DATA_YAML="$(resolve_data_yaml "${DATASET}" "${SERVER_ID}")" || {
     echo "未知数据集: ${DATASET}"
-    echo "可用: visdrone | uavdt | tinyperson"
+    echo "可用: visdrone | uavdt | tinyperson | rsstod"
     exit 1
   }
 fi
