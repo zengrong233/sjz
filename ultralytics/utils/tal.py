@@ -226,6 +226,19 @@ class TaskAlignedAssigner(nn.Module):
         """
         n_anchors = xy_centers.shape[0]
         bs, n_boxes, _ = gt_bboxes.shape
+        # AI-TOD 等密集小目标数据集 n_boxes 可达数千，原版 bbox_deltas 峰值张量
+        # = bs * n_boxes * n_anchors * 4 * 4 bytes 可达 10+ GiB，触发 CUDA OOM。
+        # 超过 1 GiB 时沿 n_boxes 维度分块，输出语义与原版等价。
+        peak_bytes = bs * n_boxes * n_anchors * 4 * 4
+        if peak_bytes > 1 * 1024 ** 3:
+            chunk = max(1, (1 * 1024 ** 3) // (bs * n_anchors * 4 * 4))
+            out = []
+            for i in range(0, n_boxes, chunk):
+                gt_c = gt_bboxes[:, i:i + chunk, :]
+                lt_c, rb_c = gt_c.reshape(-1, 1, 4).chunk(2, 2)
+                deltas = torch.cat((xy_centers[None] - lt_c, rb_c - xy_centers[None]), dim=2)
+                out.append(deltas.amin(2).gt_(eps).view(bs, -1, n_anchors))
+            return torch.cat(out, dim=1)
         lt, rb = gt_bboxes.view(-1, 1, 4).chunk(2, 2)  # left-top, right-bottom
         bbox_deltas = torch.cat((xy_centers[None] - lt, rb - xy_centers[None]), dim=2).view(bs, n_boxes, n_anchors, -1)
         # return (bbox_deltas.min(3)[0] > eps).to(gt_bboxes.dtype)

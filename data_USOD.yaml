@@ -1,0 +1,9 @@
+path: C:/Users/86155/Desktop/水经注/代码/2026.4.5/ultralyticsPro--YOLO11/datasets/USOD
+train: images/train
+val: images/val
+test: images/test
+
+nc: 1
+
+names:
+  0: vehicle

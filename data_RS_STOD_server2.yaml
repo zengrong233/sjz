@@ -1,6 +1,6 @@
 # RS-STOD dataset config - second cloud server
 
-path: /share/home/u2415363072/4.6/ultralyticsPro--YOLO11/datasets/RS-STOD
+path: datasets/RS-STOD
 train: images/train
 val: images/val
 test: images/test

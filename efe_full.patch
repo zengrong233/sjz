@@ -1,0 +1,525 @@
+diff --git a/ultralytics/nn/modules/block.py b/ultralytics/nn/modules/block.py
+index 7208ea6..b9d07ed 100644
+--- a/ultralytics/nn/modules/block.py
++++ b/ultralytics/nn/modules/block.py
+@@ -720,16 +720,94 @@ class C3f(nn.Module):
+         return self.cv3(torch.cat(y, 1))
+ 
+ 
++class SobelConvBranch(nn.Module):
++    """Fixed Sobel branch that extracts horizontal and vertical edge responses."""
++
++    def __init__(self, channels):
++        super().__init__()
++        kx = torch.tensor([[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]], dtype=torch.float32)
++        ky = torch.tensor([[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0]], dtype=torch.float32)
++        self.register_buffer("weight_x", kx.view(1, 1, 3, 3).repeat(channels, 1, 1, 1), persistent=False)
++        self.register_buffer("weight_y", ky.view(1, 1, 3, 3).repeat(channels, 1, 1, 1), persistent=False)
++
++    def forward(self, x):
++        wx = self.weight_x.to(dtype=x.dtype)
++        wy = self.weight_y.to(dtype=x.dtype)
++        ex = F.conv2d(x, wx, padding=1, groups=x.shape[1])
++        ey = F.conv2d(x, wy, padding=1, groups=x.shape[1])
++        return ex.abs() + ey.abs()
++
++
++class EFE(nn.Module):
++    """Edge and context auxiliary branches fused with the main branch output."""
++
++    def __init__(self, in_channels, out_channels, use_sobel=True, use_dilate=True, dilation=2):
++        super().__init__()
++        self.use_sobel = use_sobel
++        self.use_dilate = use_dilate
++
++        self.sobel = SobelConvBranch(in_channels) if use_sobel else None
++        self.sobel_proj = Conv(in_channels, out_channels, 1, 1) if use_sobel else None
++
++        self.dilated = Conv(in_channels, out_channels, 3, 1, d=dilation) if use_dilate else None
++
++        branch_count = 1 + int(use_sobel) + int(use_dilate)  # main + optional auxiliary branches
++        self.fuse = Conv(out_channels * branch_count, out_channels, 1, 1)
++
++    def forward(self, x, y_main):
++        ys = [y_main]
++        if self.use_sobel:
++            ys.append(self.sobel_proj(self.sobel(x)))
++        if self.use_dilate:
++            ys.append(self.dilated(x))
++        return self.fuse(torch.cat(ys, 1))
++
++
+ class C3k2(C2f):
+     """Faster Implementation of CSP Bottleneck with 2 convolutions."""
+ 
+-    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, g=1, shortcut=True):
+-        """Initializes the C3k2 module, a faster CSP Bottleneck with 2 convolutions and optional C3k blocks."""
++    def __init__(
++        self,
++        c1,
++        c2,
++        n=1,
++        c3k=False,
++        e=0.5,
++        g=1,
++        shortcut=True,
++        efe=False,
++        use_sobel=True,
++        use_dilate=True,
++        dilate=2,
++    ):
++        """
++        Initializes C3k2 with optional EFE pre-enhancement.
++
++        Args:
++            c1 (int): Input channels.
++            c2 (int): Output channels.
++            n (int): Number of inner bottlenecks.
++            c3k (bool): Use C3k blocks instead of Bottleneck.
++            e (float): Expansion ratio.
++            g (int): Group convolution value.
++            shortcut (bool): Enable bottleneck shortcut.
++            efe (bool): Enable EFE auxiliary fusion.
++            use_sobel (bool): Enable Sobel edge auxiliary branch.
++            use_dilate (bool): Enable dilated context auxiliary branch.
++            dilate (int): Dilation rate for EFE dilated branch.
++        """
+         super().__init__(c1, c2, n, shortcut, g, e)
++        self.efe = EFE(c1, c2, use_sobel=use_sobel, use_dilate=use_dilate, dilation=dilate) if efe else None
+         self.m = nn.ModuleList(
+             C3k(self.c, self.c, 2, shortcut, g) if c3k else Bottleneck(self.c, self.c, shortcut, g) for _ in range(n)
+         )
+ 
++    def forward(self, x):
++        y_main = super().forward(x)
++        if self.efe is None:
++            return y_main
++        return self.efe(x, y_main)
++
+ 
+ class C3k(C3):
+     """C3k is a CSP bottleneck module with customizable kernel sizes for feature extraction in neural networks."""
+diff --git a/YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-EFE.yaml b/YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-EFE.yaml
+new file mode 100644
+index 0000000..7034de4
+--- /dev/null
++++ b/YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-EFE.yaml
+@@ -0,0 +1,100 @@
++# Ultralytics YOLO 🚀, AGPL-3.0 license
++# YOLO11 小目标检测 PRR v3-EFE - C3k2 主支路保留 + Sobel/空洞卷积辅助支路
++#
++# 核心改造：
++# 1. 删除 P5 独立检测支路（34/35/36），保留 backbone P5 语义用于 SPPF/HFAMPAN 聚合
++# 2. RefocusSingle 从 softmask 切换到 gridsample（显式局部重采样）
++# 3. 最终检测头从四尺度 [P2,P3,P4,P5] 改为三尺度 [P2,P3,P4]
++# 4. P4 RepBlock repeat 1->2（回收 P5 预算，增强最高检测层表征）
++# 5. backbone C3k2 使用 EFE 融合：Y = Conv1x1(C3k2(X) ⊕ Sobel(X) ⊕ DilatedConv(X))
++# 6. 分层策略：浅层仅 Sobel；中层 dilation=2；深层 dilation=3
++#
++# 论文依据：
++# - LSOD-YOLO：引入 P2 后去除 P5 检测层，减少参数量和 GFLOPs，同时提升小目标 mAP
++# - DySample：基于采样点偏移的动态采样优于普通上采样，更适合小目标细节保留
++# - 本工作将 grid_sample 作为 PRR 的"局部重聚焦采样器"，实现显式空间重采样
++#
++# 尺度职责重分配：
++# - P2 (stride=4)：tiny 目标 (0-16px)
++# - P3 (stride=8)：small 目标 (16-32px)
++# - P4 (stride=16)：medium + large 目标 (32px+)
++
++nc: 80
++scales:
++  n: [0.50, 0.25, 1024]
++  s: [0.50, 0.50, 1024]
++  m: [0.50, 1.00, 512]
++  l: [1.00, 1.00, 512]
++  x: [1.00, 1.50, 512]
++
++loss: NWD
++
++backbone:
++  - [-1, 1, Conv, [64, 3, 2]]          # 0-P1/2
++  - [-1, 1, Conv, [128, 3, 2]]         # 1-P2/4
++  - [-1, 2, C3k2, [256, False, 0.25, 1, True, True, True, False, 1]]  # 2: shallow, Sobel only
++  - [-1, 1, Conv, [256, 3, 2]]         # 3-P3/8
++  - [-1, 2, C3k2, [512, False, 0.25, 1, True, True, True, True, 2]]   # 4: mid, Sobel + dilate(2)
++  - [-1, 1, Conv, [512, 3, 2]]         # 5-P4/16
++  - [-1, 2, C3k2, [512, True, 0.5, 1, True, True, True, True, 3]]     # 6: deep, Sobel + dilate(3)
++  - [-1, 1, Conv, [1024, 3, 2]]        # 7-P5/32（保留，用于 SPPF 语义聚合）
++  - [-1, 2, C3k2, [1024, True, 0.5, 1, True, True, True, True, 3]]    # 8: deep, Sobel + dilate(3)
++  - [-1, 1, SPPF, [1024, 5]]           # 9（保留，为 HFAMPAN 提供深层语义）
++
++head:
++  # ===== FPN top-down（保留完整，P5 语义仍参与融合）=====
++  # P5->P4
++  - [-1, 1, Conv, [512, 1, 1]]                        # 10
++  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]        # 11
++  - [[-1, 6], 1, Concat, [1]]                         # 12
++  - [-1, 1, C2f, [512, False]]                        # 13  repeat=1（P5 语义轻量传递）
++
++  # P4->P3
++  - [-1, 1, Conv, [256, 1, 1]]                        # 14
++  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]        # 15
++  - [[-1, 4], 1, Concat, [1]]                         # 16
++  - [-1, 2, C2f, [256, False]]                        # 17  repeat=2
++
++  # P3->P2
++  - [-1, 1, Conv, [128, 1, 1]]                        # 18
++  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]        # 19
++  - [[-1, 2], 1, Concat, [1]]                         # 20
++  - [-1, 3, C2f, [128, False]]                        # 21  repeat=3（P2 小目标核心，保持深度）
++
++  # ===== HFAMPAN 金字塔聚合（仍包含 P5=layer9 的语义）=====
++  - [[-1, -4, -8, 9], 1, PyramidPoolAgg, [512, 2, 'torch']]  # 22
++
++  # ===== P2 输出分支（完整保留，小目标核心）=====
++  - [21, 1, TopBasicLayer, [128]]                      # 23
++  - [[23, 21], 1, LAF_h, []]                          # 24
++  - [[-1, 22], 1, InjectionMultiSum_Auto_pool2, [128]] # 25
++  - [-1, 3, RepBlock, [128]]                           # 26  repeat=3
++
++  # ===== P3 输出分支（完整保留）=====
++  - [17, 1, TopBasicLayer, [256]]                      # 27
++  - [[27, 17], 1, LAF_h, []]                          # 28
++  - [[-1, 22], 1, InjectionMultiSum_Auto_pool3, [256]] # 29
++  - [-1, 3, RepBlock, [256]]                           # 30  repeat=3
++
++  # ===== P4 输出分支（回收 P5 预算，RepBlock 1->2）=====
++  - [[30, 13], 1, LAF_h, []]                          # 31
++  - [[-1, 22], 1, InjectionMultiSum_Auto_pool4, [512]] # 32
++  - [-1, 2, RepBlock, [512]]                           # 33  repeat=2（原 PRR 版为 1，回收 P5 预算）
++
++  # ===== PRR: grid_sample 局部重聚焦重采样 =====
++  - [26, 1, RefocusSingle, [gridsample]]               # 34  P2 重聚焦
++  - [30, 1, RefocusSingle, [gridsample]]               # 35  P3 重聚焦
++
++  # ===== 小目标增强 =====
++  - [34, 1, MFFF, [128, 0.25]]                        # 36  P2 多频率特征融合
++  - [35, 1, MFFF, [256, 0.25]]                        # 37  P3 多频率特征融合
++
++  # ===== 频率聚焦下采样 =====
++  - [36, 1, FrequencyFocusedDownSampling, [128]]       # 38  P2 频率聚焦
++  - [37, 1, FrequencyFocusedDownSampling, [256]]       # 39  P3 频率聚焦
++
++  # ===== 语义对齐校准（P2/P3 对齐，不变）=====
++  - [[38, 39], 1, SemanticAlignmenCalibration, []]     # 40
++
++  # ===== 检测头 - 三尺度 [P2, P3, P4] =====
++  - [[36, 40, 33], 1, AsDDet, [nc]]                   # 41
+diff --git a/YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-EFE-sobel.yaml b/YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-EFE-sobel.yaml
+new file mode 100644
+index 0000000..8c549cd
+--- /dev/null
++++ b/YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-EFE-sobel.yaml
+@@ -0,0 +1,100 @@
++# Ultralytics YOLO 🚀, AGPL-3.0 license
++# YOLO11 小目标检测 PRR v3-EFE-sobel - C3k2 主支路保留 + Sobel 辅助支路
++#
++# 核心改造：
++# 1. 删除 P5 独立检测支路（34/35/36），保留 backbone P5 语义用于 SPPF/HFAMPAN 聚合
++# 2. RefocusSingle 从 softmask 切换到 gridsample（显式局部重采样）
++# 3. 最终检测头从四尺度 [P2,P3,P4,P5] 改为三尺度 [P2,P3,P4]
++# 4. P4 RepBlock repeat 1->2（回收 P5 预算，增强最高检测层表征）
++# 5. backbone C3k2 使用 EFE 融合：Y = Conv1x1(C3k2(X) ⊕ Sobel(X) ⊕ DilatedConv(X))
++# 6. 消融设置：仅启用 Sobel 辅助支路（关闭 Dilated 辅助支路）
++#
++# 论文依据：
++# - LSOD-YOLO：引入 P2 后去除 P5 检测层，减少参数量和 GFLOPs，同时提升小目标 mAP
++# - DySample：基于采样点偏移的动态采样优于普通上采样，更适合小目标细节保留
++# - 本工作将 grid_sample 作为 PRR 的"局部重聚焦采样器"，实现显式空间重采样
++#
++# 尺度职责重分配：
++# - P2 (stride=4)：tiny 目标 (0-16px)
++# - P3 (stride=8)：small 目标 (16-32px)
++# - P4 (stride=16)：medium + large 目标 (32px+)
++
++nc: 80
++scales:
++  n: [0.50, 0.25, 1024]
++  s: [0.50, 0.50, 1024]
++  m: [0.50, 1.00, 512]
++  l: [1.00, 1.00, 512]
++  x: [1.00, 1.50, 512]
++
++loss: NWD
++
++backbone:
++  - [-1, 1, Conv, [64, 3, 2]]          # 0-P1/2
++  - [-1, 1, Conv, [128, 3, 2]]         # 1-P2/4
++  - [-1, 2, C3k2, [256, False, 0.25, 1, True, True, True, False, 1]]  # 2: Sobel only
++  - [-1, 1, Conv, [256, 3, 2]]         # 3-P3/8
++  - [-1, 2, C3k2, [512, False, 0.25, 1, True, True, True, False, 1]]  # 4: Sobel only
++  - [-1, 1, Conv, [512, 3, 2]]         # 5-P4/16
++  - [-1, 2, C3k2, [512, True, 0.5, 1, True, True, True, False, 1]]    # 6: Sobel only
++  - [-1, 1, Conv, [1024, 3, 2]]        # 7-P5/32（保留，用于 SPPF 语义聚合）
++  - [-1, 2, C3k2, [1024, True, 0.5, 1, True, True, True, False, 1]]   # 8: Sobel only
++  - [-1, 1, SPPF, [1024, 5]]           # 9（保留，为 HFAMPAN 提供深层语义）
++
++head:
++  # ===== FPN top-down（保留完整，P5 语义仍参与融合）=====
++  # P5->P4
++  - [-1, 1, Conv, [512, 1, 1]]                        # 10
++  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]        # 11
++  - [[-1, 6], 1, Concat, [1]]                         # 12
++  - [-1, 1, C2f, [512, False]]                        # 13  repeat=1（P5 语义轻量传递）
++
++  # P4->P3
++  - [-1, 1, Conv, [256, 1, 1]]                        # 14
++  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]        # 15
++  - [[-1, 4], 1, Concat, [1]]                         # 16
++  - [-1, 2, C2f, [256, False]]                        # 17  repeat=2
++
++  # P3->P2
++  - [-1, 1, Conv, [128, 1, 1]]                        # 18
++  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]        # 19
++  - [[-1, 2], 1, Concat, [1]]                         # 20
++  - [-1, 3, C2f, [128, False]]                        # 21  repeat=3（P2 小目标核心，保持深度）
++
++  # ===== HFAMPAN 金字塔聚合（仍包含 P5=layer9 的语义）=====
++  - [[-1, -4, -8, 9], 1, PyramidPoolAgg, [512, 2, 'torch']]  # 22
++
++  # ===== P2 输出分支（完整保留，小目标核心）=====
++  - [21, 1, TopBasicLayer, [128]]                      # 23
++  - [[23, 21], 1, LAF_h, []]                          # 24
++  - [[-1, 22], 1, InjectionMultiSum_Auto_pool2, [128]] # 25
++  - [-1, 3, RepBlock, [128]]                           # 26  repeat=3
++
++  # ===== P3 输出分支（完整保留）=====
++  - [17, 1, TopBasicLayer, [256]]                      # 27
++  - [[27, 17], 1, LAF_h, []]                          # 28
++  - [[-1, 22], 1, InjectionMultiSum_Auto_pool3, [256]] # 29
++  - [-1, 3, RepBlock, [256]]                           # 30  repeat=3
++
++  # ===== P4 输出分支（回收 P5 预算，RepBlock 1->2）=====
++  - [[30, 13], 1, LAF_h, []]                          # 31
++  - [[-1, 22], 1, InjectionMultiSum_Auto_pool4, [512]] # 32
++  - [-1, 2, RepBlock, [512]]                           # 33  repeat=2（原 PRR 版为 1，回收 P5 预算）
++
++  # ===== PRR: grid_sample 局部重聚焦重采样 =====
++  - [26, 1, RefocusSingle, [gridsample]]               # 34  P2 重聚焦
++  - [30, 1, RefocusSingle, [gridsample]]               # 35  P3 重聚焦
++
++  # ===== 小目标增强 =====
++  - [34, 1, MFFF, [128, 0.25]]                        # 36  P2 多频率特征融合
++  - [35, 1, MFFF, [256, 0.25]]                        # 37  P3 多频率特征融合
++
++  # ===== 频率聚焦下采样 =====
++  - [36, 1, FrequencyFocusedDownSampling, [128]]       # 38  P2 频率聚焦
++  - [37, 1, FrequencyFocusedDownSampling, [256]]       # 39  P3 频率聚焦
++
++  # ===== 语义对齐校准（P2/P3 对齐，不变）=====
++  - [[38, 39], 1, SemanticAlignmenCalibration, []]     # 40
++
++  # ===== 检测头 - 三尺度 [P2, P3, P4] =====
++  - [[36, 40, 33], 1, AsDDet, [nc]]                   # 41
+diff --git a/YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-EFE-dilate.yaml b/YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-EFE-dilate.yaml
+new file mode 100644
+index 0000000..37225a3
+--- /dev/null
++++ b/YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-EFE-dilate.yaml
+@@ -0,0 +1,100 @@
++# Ultralytics YOLO 🚀, AGPL-3.0 license
++# YOLO11 小目标检测 PRR v3-EFE-dilate - C3k2 主支路保留 + Dilated 辅助支路
++#
++# 核心改造：
++# 1. 删除 P5 独立检测支路（34/35/36），保留 backbone P5 语义用于 SPPF/HFAMPAN 聚合
++# 2. RefocusSingle 从 softmask 切换到 gridsample（显式局部重采样）
++# 3. 最终检测头从四尺度 [P2,P3,P4,P5] 改为三尺度 [P2,P3,P4]
++# 4. P4 RepBlock repeat 1->2（回收 P5 预算，增强最高检测层表征）
++# 5. backbone C3k2 使用 EFE 融合：Y = Conv1x1(C3k2(X) ⊕ Sobel(X) ⊕ DilatedConv(X))
++# 6. 消融设置：仅启用 Dilated 辅助支路（关闭 Sobel 辅助支路）
++#
++# 论文依据：
++# - LSOD-YOLO：引入 P2 后去除 P5 检测层，减少参数量和 GFLOPs，同时提升小目标 mAP
++# - DySample：基于采样点偏移的动态采样优于普通上采样，更适合小目标细节保留
++# - 本工作将 grid_sample 作为 PRR 的"局部重聚焦采样器"，实现显式空间重采样
++#
++# 尺度职责重分配：
++# - P2 (stride=4)：tiny 目标 (0-16px)
++# - P3 (stride=8)：small 目标 (16-32px)
++# - P4 (stride=16)：medium + large 目标 (32px+)
++
++nc: 80
++scales:
++  n: [0.50, 0.25, 1024]
++  s: [0.50, 0.50, 1024]
++  m: [0.50, 1.00, 512]
++  l: [1.00, 1.00, 512]
++  x: [1.00, 1.50, 512]
++
++loss: NWD
++
++backbone:
++  - [-1, 1, Conv, [64, 3, 2]]          # 0-P1/2
++  - [-1, 1, Conv, [128, 3, 2]]         # 1-P2/4
++  - [-1, 2, C3k2, [256, False, 0.25, 1, True, True, False, True, 2]]  # 2: Dilate only
++  - [-1, 1, Conv, [256, 3, 2]]         # 3-P3/8
++  - [-1, 2, C3k2, [512, False, 0.25, 1, True, True, False, True, 2]]  # 4: Dilate only
++  - [-1, 1, Conv, [512, 3, 2]]         # 5-P4/16
++  - [-1, 2, C3k2, [512, True, 0.5, 1, True, True, False, True, 3]]    # 6: Dilate only
++  - [-1, 1, Conv, [1024, 3, 2]]        # 7-P5/32（保留，用于 SPPF 语义聚合）
++  - [-1, 2, C3k2, [1024, True, 0.5, 1, True, True, False, True, 3]]   # 8: Dilate only
++  - [-1, 1, SPPF, [1024, 5]]           # 9（保留，为 HFAMPAN 提供深层语义）
++
++head:
++  # ===== FPN top-down（保留完整，P5 语义仍参与融合）=====
++  # P5->P4
++  - [-1, 1, Conv, [512, 1, 1]]                        # 10
++  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]        # 11
++  - [[-1, 6], 1, Concat, [1]]                         # 12
++  - [-1, 1, C2f, [512, False]]                        # 13  repeat=1（P5 语义轻量传递）
++
++  # P4->P3
++  - [-1, 1, Conv, [256, 1, 1]]                        # 14
++  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]        # 15
++  - [[-1, 4], 1, Concat, [1]]                         # 16
++  - [-1, 2, C2f, [256, False]]                        # 17  repeat=2
++
++  # P3->P2
++  - [-1, 1, Conv, [128, 1, 1]]                        # 18
++  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]        # 19
++  - [[-1, 2], 1, Concat, [1]]                         # 20
++  - [-1, 3, C2f, [128, False]]                        # 21  repeat=3（P2 小目标核心，保持深度）
++
++  # ===== HFAMPAN 金字塔聚合（仍包含 P5=layer9 的语义）=====
++  - [[-1, -4, -8, 9], 1, PyramidPoolAgg, [512, 2, 'torch']]  # 22
++
++  # ===== P2 输出分支（完整保留，小目标核心）=====
++  - [21, 1, TopBasicLayer, [128]]                      # 23
++  - [[23, 21], 1, LAF_h, []]                          # 24
++  - [[-1, 22], 1, InjectionMultiSum_Auto_pool2, [128]] # 25
++  - [-1, 3, RepBlock, [128]]                           # 26  repeat=3
++
++  # ===== P3 输出分支（完整保留）=====
++  - [17, 1, TopBasicLayer, [256]]                      # 27
++  - [[27, 17], 1, LAF_h, []]                          # 28
++  - [[-1, 22], 1, InjectionMultiSum_Auto_pool3, [256]] # 29
++  - [-1, 3, RepBlock, [256]]                           # 30  repeat=3
++
++  # ===== P4 输出分支（回收 P5 预算，RepBlock 1->2）=====
++  - [[30, 13], 1, LAF_h, []]                          # 31
++  - [[-1, 22], 1, InjectionMultiSum_Auto_pool4, [512]] # 32
++  - [-1, 2, RepBlock, [512]]                           # 33  repeat=2（原 PRR 版为 1，回收 P5 预算）
++
++  # ===== PRR: grid_sample 局部重聚焦重采样 =====
++  - [26, 1, RefocusSingle, [gridsample]]               # 34  P2 重聚焦
++  - [30, 1, RefocusSingle, [gridsample]]               # 35  P3 重聚焦
++
++  # ===== 小目标增强 =====
++  - [34, 1, MFFF, [128, 0.25]]                        # 36  P2 多频率特征融合
++  - [35, 1, MFFF, [256, 0.25]]                        # 37  P3 多频率特征融合
++
++  # ===== 频率聚焦下采样 =====
++  - [36, 1, FrequencyFocusedDownSampling, [128]]       # 38  P2 频率聚焦
++  - [37, 1, FrequencyFocusedDownSampling, [256]]       # 39  P3 频率聚焦
++
++  # ===== 语义对齐校准（P2/P3 对齐，不变）=====
++  - [[38, 39], 1, SemanticAlignmenCalibration, []]     # 40
++
++  # ===== 检测头 - 三尺度 [P2, P3, P4] =====
++  - [[36, 40, 33], 1, AsDDet, [nc]]                   # 41
+diff --git a/YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-EFE-joint.yaml b/YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-EFE-joint.yaml
+new file mode 100644
+index 0000000..a6e7868
+--- /dev/null
++++ b/YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-EFE-joint.yaml
+@@ -0,0 +1,100 @@
++# Ultralytics YOLO 🚀, AGPL-3.0 license
++# YOLO11 小目标检测 PRR v3-EFE-joint - C3k2 主支路保留 + Sobel/空洞卷积联合辅助支路
++#
++# 核心改造：
++# 1. 删除 P5 独立检测支路（34/35/36），保留 backbone P5 语义用于 SPPF/HFAMPAN 聚合
++# 2. RefocusSingle 从 softmask 切换到 gridsample（显式局部重采样）
++# 3. 最终检测头从四尺度 [P2,P3,P4,P5] 改为三尺度 [P2,P3,P4]
++# 4. P4 RepBlock repeat 1->2（回收 P5 预算，增强最高检测层表征）
++# 5. backbone C3k2 使用 EFE 融合：Y = Conv1x1(C3k2(X) ⊕ Sobel(X) ⊕ DilatedConv(X))
++# 6. 分层策略：浅层仅 Sobel；中层 dilation=2；深层 dilation=3
++#
++# 论文依据：
++# - LSOD-YOLO：引入 P2 后去除 P5 检测层，减少参数量和 GFLOPs，同时提升小目标 mAP
++# - DySample：基于采样点偏移的动态采样优于普通上采样，更适合小目标细节保留
++# - 本工作将 grid_sample 作为 PRR 的"局部重聚焦采样器"，实现显式空间重采样
++#
++# 尺度职责重分配：
++# - P2 (stride=4)：tiny 目标 (0-16px)
++# - P3 (stride=8)：small 目标 (16-32px)
++# - P4 (stride=16)：medium + large 目标 (32px+)
++
++nc: 80
++scales:
++  n: [0.50, 0.25, 1024]
++  s: [0.50, 0.50, 1024]
++  m: [0.50, 1.00, 512]
++  l: [1.00, 1.00, 512]
++  x: [1.00, 1.50, 512]
++
++loss: NWD
++
++backbone:
++  - [-1, 1, Conv, [64, 3, 2]]          # 0-P1/2
++  - [-1, 1, Conv, [128, 3, 2]]         # 1-P2/4
++  - [-1, 2, C3k2, [256, False, 0.25, 1, True, True, True, False, 1]]  # 2: shallow, Sobel only
++  - [-1, 1, Conv, [256, 3, 2]]         # 3-P3/8
++  - [-1, 2, C3k2, [512, False, 0.25, 1, True, True, True, True, 2]]   # 4: mid, Sobel + dilate(2)
++  - [-1, 1, Conv, [512, 3, 2]]         # 5-P4/16
++  - [-1, 2, C3k2, [512, True, 0.5, 1, True, True, True, True, 3]]     # 6: deep, Sobel + dilate(3)
++  - [-1, 1, Conv, [1024, 3, 2]]        # 7-P5/32（保留，用于 SPPF 语义聚合）
++  - [-1, 2, C3k2, [1024, True, 0.5, 1, True, True, True, True, 3]]    # 8: deep, Sobel + dilate(3)
++  - [-1, 1, SPPF, [1024, 5]]           # 9（保留，为 HFAMPAN 提供深层语义）
++
++head:
++  # ===== FPN top-down（保留完整，P5 语义仍参与融合）=====
++  # P5->P4
++  - [-1, 1, Conv, [512, 1, 1]]                        # 10
++  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]        # 11
++  - [[-1, 6], 1, Concat, [1]]                         # 12
++  - [-1, 1, C2f, [512, False]]                        # 13  repeat=1（P5 语义轻量传递）
++
++  # P4->P3
++  - [-1, 1, Conv, [256, 1, 1]]                        # 14
++  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]        # 15
++  - [[-1, 4], 1, Concat, [1]]                         # 16
++  - [-1, 2, C2f, [256, False]]                        # 17  repeat=2
++
++  # P3->P2
++  - [-1, 1, Conv, [128, 1, 1]]                        # 18
++  - [-1, 1, nn.Upsample, [None, 2, 'nearest']]        # 19
++  - [[-1, 2], 1, Concat, [1]]                         # 20
++  - [-1, 3, C2f, [128, False]]                        # 21  repeat=3（P2 小目标核心，保持深度）
++
++  # ===== HFAMPAN 金字塔聚合（仍包含 P5=layer9 的语义）=====
++  - [[-1, -4, -8, 9], 1, PyramidPoolAgg, [512, 2, 'torch']]  # 22
++
++  # ===== P2 输出分支（完整保留，小目标核心）=====
++  - [21, 1, TopBasicLayer, [128]]                      # 23
++  - [[23, 21], 1, LAF_h, []]                          # 24
++  - [[-1, 22], 1, InjectionMultiSum_Auto_pool2, [128]] # 25
++  - [-1, 3, RepBlock, [128]]                           # 26  repeat=3
++
++  # ===== P3 输出分支（完整保留）=====
++  - [17, 1, TopBasicLayer, [256]]                      # 27
++  - [[27, 17], 1, LAF_h, []]                          # 28
++  - [[-1, 22], 1, InjectionMultiSum_Auto_pool3, [256]] # 29
++  - [-1, 3, RepBlock, [256]]                           # 30  repeat=3
++
++  # ===== P4 输出分支（回收 P5 预算，RepBlock 1->2）=====
++  - [[30, 13], 1, LAF_h, []]                          # 31
++  - [[-1, 22], 1, InjectionMultiSum_Auto_pool4, [512]] # 32
++  - [-1, 2, RepBlock, [512]]                           # 33  repeat=2（原 PRR 版为 1，回收 P5 预算）
++
++  # ===== PRR: grid_sample 局部重聚焦重采样 =====
++  - [26, 1, RefocusSingle, [gridsample]]               # 34  P2 重聚焦
++  - [30, 1, RefocusSingle, [gridsample]]               # 35  P3 重聚焦
++
++  # ===== 小目标增强 =====
++  - [34, 1, MFFF, [128, 0.25]]                        # 36  P2 多频率特征融合
++  - [35, 1, MFFF, [256, 0.25]]                        # 37  P3 多频率特征融合
++
++  # ===== 频率聚焦下采样 =====
++  - [36, 1, FrequencyFocusedDownSampling, [128]]       # 38  P2 频率聚焦
++  - [37, 1, FrequencyFocusedDownSampling, [256]]       # 39  P3 频率聚焦
++
++  # ===== 语义对齐校准（P2/P3 对齐，不变）=====
++  - [[38, 39], 1, SemanticAlignmenCalibration, []]     # 40
++
++  # ===== 检测头 - 三尺度 [P2, P3, P4] =====
++  - [[36, 40, 33], 1, AsDDet, [nc]]                   # 41

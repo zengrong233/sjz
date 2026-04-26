@@ -1,0 +1,10 @@
+# USOD dataset config - second cloud server
+
+path: datasets/USOD
+train: images/train
+val: images/val
+test: images/test
+
+nc: 1
+names:
+  0: vehicle

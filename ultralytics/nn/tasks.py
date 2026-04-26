@@ -71,7 +71,7 @@ from ultralytics.nn.core11.arconv import CARC
 from ultralytics.nn.core11.PinwheelConv import PinwheelCB, PinwheelConv
 from ultralytics.nn.core11.scconv import SCBottleneck
 
-from ultralytics.nn.core11.uav import DySample_,SPDConv,MFFF,FrequencyFocusedDownSampling,SemanticAlignmenCalibration, BottleNeck, BasicBlock_
+from ultralytics.nn.core11.uav import DySample_,SPDConv,MFFF,FrequencyFocusedDownSampling,SemanticAlignmenCalibration, BottleNeck, BasicBlock_, P3Fusion
 from ultralytics.nn.core11.uav_block import ConvNormLayer, Blocks, RepC3_
 from ultralytics.nn.core11.repvit import RepVB
 from ultralytics.nn.core11.refocus_resample import RefocusSingle, P2P3RefocusResample
@@ -1483,8 +1483,14 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             args = [c2, *args]
         elif m is SemanticAlignmenCalibration:
             c1 = [ch[x] for x in f]
-            c2 = c1[0]
-            args = [c1]
+            out_c = args[0] if args else None
+            c2 = c1[0] if out_c is None else make_divisible(min(out_c, max_channels) * width, 8)
+            args = [c1, c2]
+        elif m is P3Fusion:
+            c1 = [ch[x] for x in f]
+            out_c_raw = args[0] if len(args) else max(c1)
+            c2 = make_divisible(min(out_c_raw, max_channels) * width, 8)
+            args = [c1, c2]
         elif m is Blocks:
             block_type = globals()[args[1]]
             c1, c2 = ch[f], args[0] * block_type.expansion

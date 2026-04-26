@@ -46,15 +46,21 @@ def main(opt):
     # ------------------------------------------------------------------
     if opt.trainer_mode == "baseline":
         # 原始行为，不做任何修改
-        results = model.train(
-            data=data,
-            epochs=opt.epochs,
-            imgsz=opt.imgsz,
-            workers=opt.workers,
-            batch=opt.batch,
-            device=device,
-            exist_ok=True,
-        )
+        train_kwargs = {
+            "data": data,
+            "epochs": opt.epochs,
+            "imgsz": opt.imgsz,
+            "workers": opt.workers,
+            "batch": opt.batch,
+            "device": device,
+            "exist_ok": opt.exist_ok,
+            "amp": opt.amp,
+        }
+        if opt.project:
+            train_kwargs["project"] = opt.project
+        if opt.name:
+            train_kwargs["name"] = opt.name
+        results = model.train(**train_kwargs)
     else:
         # A / B / AB 模式：使用 SmallObjectABTrainer
         from ultralytics.engine.small_object_trainer import SmallObjectABTrainer
@@ -95,9 +101,14 @@ def main(opt):
             "workers": opt.workers,
             "batch": opt.batch,
             "device": device,
-            "exist_ok": True,
+            "exist_ok": opt.exist_ok,
+            "amp": opt.amp,
             "task": "detect",
         }
+        if opt.project:
+            overrides["project"] = opt.project
+        if opt.name:
+            overrides["name"] = opt.name
 
         # 如果有预训练权重，设置 pretrained
         if weights and os.path.exists(weights):
@@ -131,6 +142,14 @@ def parse_opt(known=False):
                         help='batch size')
     parser.add_argument('--workers', type=int, default=8,
                         help='dataloader workers')
+    parser.add_argument('--project', type=str, default='',
+                        help='训练输出根目录（可选）')
+    parser.add_argument('--name', type=str, default='',
+                        help='本次训练名称（可选）')
+    parser.add_argument('--exist_ok', action='store_true',
+                        help='允许复用已有输出目录（默认关闭，避免 results.csv 追加污染）')
+    parser.add_argument('--amp', action='store_true',
+                        help='启用混合精度训练，降低显存占用')
 
     # A+B 策略参数
     parser.add_argument('--trainer_mode', type=str, default='full',

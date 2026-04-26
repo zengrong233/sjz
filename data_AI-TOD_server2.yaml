@@ -1,0 +1,17 @@
+# AI-TOD dataset config - second cloud server
+
+path: datasets/AI-TOD
+train: images/train
+val: images/val
+test: images/test
+
+nc: 8
+names:
+  0: airplane
+  1: bridge
+  2: person
+  3: ship
+  4: storage-tank
+  5: swimming-pool
+  6: vehicle
+  7: wind-mill

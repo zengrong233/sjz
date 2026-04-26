@@ -24,6 +24,7 @@ SMALL_OBJECT_MODULE_CLASSES = {
     "CandidateHeatmapHead",
     "SoftRefocusEnhancer",
     "GridSampleRefiner",
+    "P3Fusion",
 }
 
 # 检测头模块类名

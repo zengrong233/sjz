@@ -720,15 +720,114 @@ class C3f(nn.Module):
         return self.cv3(torch.cat(y, 1))
 
 
-class C3k2(C2f):
-    """Faster Implementation of CSP Bottleneck with 2 convolutions."""
+class SobelConvBranch(nn.Module):
+    """Fixed Sobel branch that extracts horizontal and vertical edge responses."""
 
-    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, g=1, shortcut=True):
-        """Initializes the C3k2 module, a faster CSP Bottleneck with 2 convolutions and optional C3k blocks."""
+    def __init__(self, channels):
+        super().__init__()
+        kx = torch.tensor([[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]], dtype=torch.float32)
+        ky = torch.tensor([[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0]], dtype=torch.float32)
+        self.register_buffer("weight_x", kx.view(1, 1, 3, 3).repeat(channels, 1, 1, 1), persistent=False)
+        self.register_buffer("weight_y", ky.view(1, 1, 3, 3).repeat(channels, 1, 1, 1), persistent=False)
+
+    def forward(self, x):
+        wx = self.weight_x.to(dtype=x.dtype)
+        wy = self.weight_y.to(dtype=x.dtype)
+        ex = F.conv2d(x, wx, padding=1, groups=x.shape[1])
+        ey = F.conv2d(x, wy, padding=1, groups=x.shape[1])
+        return ex.abs() + ey.abs()
+
+
+class LightSAConv(nn.Module):
+    """轻量版 Switchable Atrous Convolution，用于 YOLO 主干中的上下文增强分支。"""
+
+    def __init__(self, c1, c2, k=3, s=1, dilation=3, act=True):
+        super().__init__()
+        self.pre_context = nn.Conv2d(c1, c1, 1, bias=True)
+        self.switch = nn.Sequential(nn.AvgPool2d(kernel_size=5, stride=1, padding=2), nn.Conv2d(c1, 1, 1), nn.Sigmoid())
+        self.small = nn.Conv2d(c1, c2, k, s, autopad(k, None, 1), bias=False)
+        self.large = nn.Conv2d(c1, c2, k, s, autopad(k, None, dilation), dilation=dilation, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = Conv.default_act if act is True else act if isinstance(act, nn.Module) else nn.Identity()
+        self.post_context = nn.Conv2d(c2, c2, 1, bias=True)
+
+    def forward(self, x):
+        x = x + self.pre_context(F.adaptive_avg_pool2d(x, 1))
+        switch = self.switch(x)
+        y = switch * self.small(x) + (1 - switch) * self.large(x)
+        y = self.act(self.bn(y))
+        return y + self.post_context(F.adaptive_avg_pool2d(y, 1))
+
+
+class SSA(nn.Module):
+    """Sobel-SAConv Augmentation: 主支路保留，边缘与可切换感受野作为辅助分支注入。"""
+
+    def __init__(self, in_channels, out_channels, use_sobel=True, use_saconv=True, sac_dilate=3):
+        super().__init__()
+        self.use_sobel = use_sobel
+        self.use_saconv = use_saconv
+
+        self.sobel = SobelConvBranch(in_channels) if use_sobel else None
+        self.sobel_proj = Conv(in_channels, out_channels, 1, 1) if use_sobel else None
+
+        self.saconv = LightSAConv(in_channels, out_channels, 3, 1, dilation=sac_dilate) if use_saconv else None
+
+        branch_count = 1 + int(use_sobel) + int(use_saconv)  # main + optional auxiliary branches
+        self.fuse = Conv(out_channels * branch_count, out_channels, 1, 1)
+
+    def forward(self, x, y_main):
+        ys = [y_main]
+        if self.use_sobel:
+            ys.append(self.sobel_proj(self.sobel(x)))
+        if self.use_saconv:
+            ys.append(self.saconv(x))
+        return self.fuse(torch.cat(ys, 1))
+
+
+class C3k2(C2f):
+    """Faster Implementation of CSP Bottleneck with 2 convolutions and optional C3k2-SSA augmentation."""
+
+    def __init__(
+        self,
+        c1,
+        c2,
+        n=1,
+        c3k=False,
+        e=0.5,
+        g=1,
+        shortcut=True,
+        ssa=False,
+        use_sobel=True,
+        use_saconv=True,
+        sac_dilate=3,
+    ):
+        """
+        Initializes C3k2 with optional C3k2-SSA auxiliary fusion.
+
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of inner bottlenecks.
+            c3k (bool): Use C3k blocks instead of Bottleneck.
+            e (float): Expansion ratio.
+            g (int): Group convolution value.
+            shortcut (bool): Enable bottleneck shortcut.
+            ssa (bool): Enable SSA auxiliary fusion.
+            use_sobel (bool): Enable Sobel edge auxiliary branch.
+            use_saconv (bool): Enable SAConv context auxiliary branch.
+            sac_dilate (int): Large-branch dilation rate inside LightSAConv.
+        """
         super().__init__(c1, c2, n, shortcut, g, e)
+        self.ssa = SSA(c1, c2, use_sobel=use_sobel, use_saconv=use_saconv, sac_dilate=sac_dilate) if ssa else None
         self.m = nn.ModuleList(
             C3k(self.c, self.c, 2, shortcut, g) if c3k else Bottleneck(self.c, self.c, shortcut, g) for _ in range(n)
         )
+
+    def forward(self, x):
+        y_main = super().forward(x)
+        if self.ssa is None:
+            return y_main
+        return self.ssa(x, y_main)
 
 
 class C3k(C3):

@@ -1,411 +1,290 @@
-# YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR 模型分析报告
-
-## 📋 目录
-- [模型概述](#模型概述)
-- [PRR 版 vs 原版对比](#prr-版-vs-原版对比)
-- [PRR 结构主创新详解](#prr-结构主创新详解)
-- [A+B 训练辅创新详解](#ab-训练辅创新详解)
-- [SSDS 监督补强详解](#ssds-监督补强详解)
-- [架构优化分析](#架构优化分析)
-- [完整数据流](#完整数据流)
-- [消融实验设计](#消融实验设计)
-- [训练命令参考](#训练命令参考)
-
----
-
-## 🎯 模型概述
-
-**YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR** 是在原始小目标检测模型基础上的"三位一体"增强版本：
-
-| 创新维度 | 名称 | 核心思路 |
-|---------|------|---------|
-| **结构主创新** | PRR (P2/P3-guided Refocus Resampling) | 候选区域热力图 + 软重聚焦增强 |
-| **训练辅创新** | A+B (Scale-Routed Optimizer + Noise-Aware Batch Curriculum) | 模块级差异化学习率 + 动态梯度累积 |
-| **监督补强** | SSDS (Scale-Specific Dual-Branch Supervision) | P2 聚焦 tiny，P3 聚焦 small |
-
----
-
-## 📊 PRR 版 vs 原版对比
-
-### 模型规格（scale=n）
-
-| 指标 | 原版 | PRR 版 | 变化 |
-|------|------|--------|------|
-| 层数 | 706 | 702 | -4（P4/P5 repeat 优化） |
-| 参数量 | 8,207,790 | 7,292,282 | **-11.2%** |
-| GFLOPs | 24.6 | 23.5 | **-4.5%** |
-| CPU 推理延迟 | 543 ms | 503 ms | **-7.4%** |
-| P5 分支占比 | 49.6% | 46.8% | 参数重新分配 |
-| P2/P3 分支占比 | 8.0% | 9.0% | 小目标分支相对增强 |
-| PRR 模块参数 | 0 | 8,780 | 仅 +0.12% |
-
-### 架构优化要点
-
-```
-原版问题：
-P5 RepBlock (1024ch, repeat=3) 单层占模型 40% 参数
-→ 对小目标检测贡献最小，资源严重错配
-
-PRR 版优化：
-1. P5 RepBlock repeat 3→2（减 ~1.1M）
-2. P4 RepBlock repeat 3→2（减 ~270K）
-3. FPN P5/P4 侧 C2f repeat 3→2（加速融合）
-4. P2/P3 小目标分支完整保留（精度核心）
-5. 新增 PRR 模块（仅 ~8.8K 参数）
-```
-
----
-
-## 🔬 PRR 结构主创新详解
-
-### 设计动机
-
-```
-传统 P2/P3 分支的局限：
-┌──────────────────────────────────────────────┐
-│ P2 特征 (160×160) → 全图均匀处理 → 检测头    │
-│                                               │
-│ 问题：小目标只占图像极小区域，但 P2 分支      │
-│ 对所有位置投入相同计算量 → 效率低、噪声大     │
-└──────────────────────────────────────────────┘
-
-PRR 解决方案：
-┌──────────────────────────────────────────────┐
-│ P2 特征 → [候选热力图] → 高响应区域加权       │
-│                ↓                               │
-│         [软重聚焦增强] → 局部特征增强          │
-│                ↓                               │
-│         [残差回注] → 增强后的 P2 → 检测头      │
-│                                               │
-│ 效果：让网络"先决定去哪儿看，再看得更清楚"    │
-└──────────────────────────────────────────────┘
-```
-
-### 模块组成
-
-#### 1. CandidateHeatmapHead（候选区域热力图生成）
-
-```python
-# 轻量卷积头：depthwise + pointwise + 1x1 输出
-输入: P2/P3 特征 (B, C, H, W)
-  ↓ Depthwise Conv 3×3
-  ↓ BatchNorm + SiLU
-  ↓ Pointwise Conv 1×1 (C → C//4)
-  ↓ BatchNorm + SiLU
-  ↓ Conv 1×1 (C//4 → 1)
-  ↓ Sigmoid
-输出: 候选热力图 (B, 1, H, W)，值域 [0, 1]
-```
-
-**关键设计**：
-- 输出 bias 初始化为 -2.0（sigmoid 后约 0.12），实现稀疏先验
-- 参数量极小：P2 分支仅 ~1K 参数，P3 分支仅 ~3K 参数
-
-#### 2. SoftRefocusEnhancer（软重聚焦增强，默认实现）
-
-```
-输入特征 x (B, C, H, W) + 热力图 hm (B, 1, H, W)
-  ↓
-weighted = x * hm          # 位置加权：高响应区域被放大
-  ↓
-enhanced = DW-Conv + PW-Conv(weighted)  # 局部增强
-  ↓
-output = x + γ * enhanced  # 残差回注（γ 可学习，初始 0.1）
-```
-
-**核心思想**：不改变特征图尺寸，只通过空间加权让网络聚焦小目标区域。
-
-#### 3. GridSampleRefiner（可选，基于 grid_sample 的重采样）
-
-```
-输入特征 x + 热力图 hm
-  ↓
-offset = OffsetPredictor(cat(x, hm))  # 预测采样偏移
-  ↓
-offset = offset * hm * 0.1            # 热力图加权，限制偏移幅度
-  ↓
-grid = base_grid + offset             # 构建采样网格
-  ↓
-resampled = F.grid_sample(x, grid)    # 可微重采样
-  ↓
-output = x + γ * Conv(resampled)      # 残差回注
-```
+# YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3 分析报告
 
-**适用场景**：当 softmask 不够时，grid_sample 提供更强的空间变换能力。
+## 1. 模型定位
 
-### YAML 中的位置
+`YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3.yaml` 是当前项目的小目标检测主配置。
 
-```yaml
-# 层 37-38：PRR 插入在 RepBlock 之后、MFFF 之前
-- [26, 1, RefocusSingle, [softmask]]  # 37 P2 重聚焦
-- [30, 1, RefocusSingle, [softmask]]  # 38 P3 重聚焦
-
-# 数据流：
-# RepBlock(P2) → PRR(P2) → MFFF(P2) → FreqDown → Detect
-# RepBlock(P3) → PRR(P3) → MFFF(P3) → FreqDown → Detect
-```
-
-**为什么插在 RepBlock 和 MFFF 之间**：
-- RepBlock 已完成基础特征增强，PRR 在此基础上做空间聚焦
-- MFFF 做频率域增强，PRR 先聚焦再增强，避免对噪声区域做无效频率处理
-
----
-
-## ⚡ A+B 训练辅创新详解
-
-### A 策略：Scale-Routed Optimizer
-
-```
-模型参数按顶层模块自动分为三组：
-
-┌─────────────────────────────────────────────────────┐
-│ backbone_group (model.0~9, 10~22)                    │
-│   Conv, C3k2, SPPF, C2f, Upsample, Concat           │
-│   lr = base_lr × 0.5 | betas = (0.9, 0.999)         │
-│   → 稳定训练，避免破坏预训练特征                      │
-├─────────────────────────────────────────────────────┤
-│ small_object_group (model.23~43)                     │
-│   TopBasicLayer, RepBlock, MFFF, RefocusSingle,      │
-│   FrequencyFocusedDownSampling, SemanticAlign...     │
-│   lr = base_lr × 1.25 | betas = (0.9, 0.9995)       │
-│   weight_decay = 0.5 × base_wd                       │
-│   → 更快学习小目标特征，更强动量保持方向              │
-├─────────────────────────────────────────────────────┤
-│ det_head_group (model.44 Detect)                     │
-│   lr = base_lr × 1.5 | betas = (0.9, 0.999)         │
-│   → 检测头最快响应，快速适配任务                      │
-└─────────────────────────────────────────────────────┘
-```
-
-**路由机制**：基于顶层模块索引分类 + 参数路径前缀继承，不依赖层号硬编码。
-
-### B 策略：Noise-Aware Batch Curriculum
-
-```
-每个 batch 实时计算难度：
-
-tiny_ratio = 小目标数 / 总目标数    （面积 < 16×16）
-density_ratio = 平均每图目标数 / 归一化阈值
-
-difficulty = 0.7 × tiny_ratio + 0.3 × density_ratio
-diff_ema = 0.9 × diff_ema + 0.1 × difficulty
-
-动态梯度累积：
-  diff_ema < 0.3  → accum = base_accum      (easy)
-  diff_ema < 0.6  → accum = base_accum × 2  (medium)
-  diff_ema ≥ 0.6  → accum = base_accum × 3  (hard)
-
-效果：小目标密集的 batch 自动获得更大有效 batch size，
-      降低梯度噪声，稳定训练。
-```
-
----
-
-## 🎯 SSDS 监督补强详解
-
-### 核心机制
-
-```
-TAL 分配完成后，对 target_scores 做尺度感知 soft reweighting：
-
-GT box 面积 < 256 (16×16)  → tiny  → P2 层权重 × 1.5
-GT box 面积 < 1024 (32×32) → small → P3 层权重 × 1.3
-其余                        → 保持不变
-
-效果：
-- P2 分支更聚焦极小目标的学习
-- P3 分支更聚焦小目标的学习
-- P4/P5 不受影响
-```
-
-### 两种模式
-
-| 模式 | 行为 | 适用场景 |
-|------|------|---------|
-| **soft**（默认） | 乘法加权，不改变分配 | 稳定，推荐首选 |
-| **hard** | 非对应层权重降为 0.1 | 激进，可能伤召回 |
-
----
-
-## 🏗️ 架构优化分析
-
-### 参数分布对比
-
-```
-原版参数分布（8.2M）：
-backbone  ████████████████████  1.45M (17.6%)
-P2/P3     ████                  0.66M (8.0%)
-P4        ██████████            1.18M (14.4%)
-P5        ████████████████████████████████████████  4.07M (49.6%)
-Detect    ██████                0.54M (6.6%)
-其他      ███                   0.30M (3.8%)
-
-PRR 版参数分布（7.3M）：
-backbone  ████████████████████  1.45M (19.9%)
-P2/P3     ████                  0.66M (9.0%)
-PRR       ▏                     0.01M (0.1%)
-P4        ████████              0.96M (13.1%)
-P5        ██████████████████████████████████  3.42M (46.8%)
-Detect    ██████                0.54M (7.4%)
-其他      ███                   0.30M (4.1%)
-```
-
-### 优化逻辑
-
-| 优化点 | 原版 | PRR 版 | 理由 |
-|--------|------|--------|------|
-| P5 RepBlock repeat | 3 | 2 | P5 负责大目标，repeat=2 足够 |
-| P4 RepBlock repeat | 3 | 2 | P4 负责中目标，适度减负 |
-| FPN C2f repeat (P4/P5) | 3 | 2 | FPN 融合不需要太深 |
-| P2/P3 RepBlock repeat | 3 | **3（保持）** | 小目标核心，不能减 |
-| P2/P3 C2f repeat | 3 | **3（保持）** | 高分辨率特征需要充分处理 |
-| PRR 模块 | 无 | +RefocusSingle ×2 | 仅 8.8K 参数的结构创新 |
-
----
-
-## 🔄 完整数据流
-
-```
-输入图像 (640×640×3)
-        │
-        ▼
-┌─────────────── Backbone ───────────────┐
-│ Conv→Conv→C3k2→Conv→C3k2→Conv→C3k2    │
-│ →Conv→C3k2→SPPF                        │
-│ 输出: P2(160²), P3(80²), P4(40²), P5(20²) │
-└────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────── FPN Top-Down ───────────┐
-│ P5→Conv→Up→Cat(P4)→C2f(repeat=2)      │
-│ →Conv→Up→Cat(P3)→C2f(repeat=2)        │
-│ →Conv→Up→Cat(P2)→C2f(repeat=3)        │
-└────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────── HFAMPAN ────────────────┐
-│ PyramidPoolAgg [P2,P3,P4,P5]           │
-│        │                                │
-│ P2分支: TopBasicLayer→LAF_h→Injection  │
-│         →RepBlock(×3)                   │
-│         →★ RefocusSingle(PRR) ★        │
-│         →MFFF→FreqDown                  │
-│                                         │
-│ P3分支: TopBasicLayer→LAF_h→Injection  │
-│         →RepBlock(×3)                   │
-│         →★ RefocusSingle(PRR) ★        │
-│         →MFFF→FreqDown                  │
-│                                         │
-│ P4分支: LAF_h→Injection→RepBlock(×2)   │
-│ P5分支: LAF_h→Injection→RepBlock(×2)   │
-│                                         │
-│ SemanticAlignmenCalibration(P2+P3)     │
-└────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────── Detect ─────────────────┐
-│ 四尺度检测头 [P2, P3, P4, P5]          │
-│ + NWD Loss                              │
-│ + SSDS 尺度感知重加权                   │
-└────────────────────────────────────────┘
-```
-
----
-
-## 🧪 消融实验设计
-
-### 主消融矩阵
-
-| # | 配置 | YAML | trainer_mode | 验证目标 |
-|---|------|------|-------------|---------|
-| 1 | baseline | 原版 | baseline | 基准 |
-| 2 | +PRR | PRR 版 | baseline | PRR 结构增益 |
-| 3 | +A+B | 原版 | ab | 训练策略增益 |
-| 4 | +PRR+A+B | PRR 版 | ab | 结构+训练联合 |
-| 5 | +PRR+SSDS | PRR 版 | prr_ssds | 结构+监督联合 |
-| 6 | **full** | PRR 版 | full | **三位一体** |
-
-### 细粒度消融
-
-| # | 配置 | 验证目标 |
-|---|------|---------|
-| 7 | only A | Scale-Routed Optimizer 单独贡献 |
-| 8 | only B | Batch Curriculum 单独贡献 |
-| 9 | SSDS-soft vs SSDS-hard | 监督模式对比 |
-| 10 | PRR-softmask vs PRR-gridsample | 重聚焦实现对比 |
-
-### 关键评估指标
-
-| 指标 | 说明 | 重点关注 |
-|------|------|---------|
-| mAP50 | 整体精度 | ✅ |
-| mAP50:95 | 严格精度 | ✅ |
-| AP_tiny (area<16²) | 极小目标 | ⭐ 核心 |
-| AP_small (area<32²) | 小目标 | ⭐ 核心 |
-| Recall | 召回率 | ✅ |
-| 参数量 / GFLOPs | 效率 | ✅ |
-| FPS | 推理速度 | ✅ |
-
----
-
-## 🚀 训练命令参考
-
-### 超算提交
+这条链路不是简单叠加若干模块，而是围绕“小目标优先”的目标，对结构、优化器、batch curriculum 和监督方式同时做了重分配。当前默认训练入口是 `train_yolo111 copy.py`，推荐模式是 `trainer_mode=full`。
+
+当前主线可以概括为三层：
+
+1. 结构主线：`PRR-v3`
+2. 优化主线：`A+B`
+3. 监督主线：`SSDS`
+
+其中：
+
+- `PRR-v3` 负责重新分配检测尺度与特征增强路径。
+- `A+B` 负责让不同模块、不同 batch 难度得到不同训练强度。
+- `SSDS` 负责把 tiny/small 目标更明确地推向 P2/P3。
+
+## 2. 当前主配置的核心思路
+
+### 2.1 尺度职责重分配
+
+当前 `PRR-v3` 的核心决策不是“继续加层”，而是先重分配检测资源。
+
+- `P2 (stride=4)`：主攻 tiny 目标
+- `P3 (stride=8)`：主攻 small 目标
+- `P4 (stride=16)`：承接 medium 及更大目标
+- `P5`：只保留语义参与聚合，不再单独做检测
+
+这意味着当前模型不是四尺度检测，而是三尺度检测。最终检测头输入来自 `[36, 40, 33]`，即 `P2 / P3 / P4`。
+
+### 2.2 为什么去掉 P5 检测层
+
+项目当前判断是：对于以小目标为核心的任务，P5 检测支路的边际收益低于其参数和算力消耗。
+
+因此 `PRR-v3` 做了两件事：
+
+- 保留 backbone 的 P5 深层语义，用于 SPPF 与 HFAMPAN 聚合。
+- 删除 P5 独立检测职责，把预算回收到更接近小目标的高分辨率分支。
+
+这样做的收益不是“完全不要深层语义”，而是“深层语义继续参与融合，但不再占用独立检测头预算”。
+
+## 3. PRR-v3 的结构组成
+
+## 3.1 Backbone 与 FPN 主干
+
+主干仍然沿用 YOLO11 风格的 backbone + top-down FPN，只是在用途上做了重新约束：
+
+- Backbone 负责提取多尺度基础语义
+- FPN 负责把高层语义逐步传回到高分辨率层
+- HFAMPAN 负责多尺度聚合与分支注入
+
+`PRR-v3` 不是推翻 backbone，而是在 head 及 small-object 分支上重构重点。
+
+## 3.2 HFAMPAN 聚合层
+
+HFAMPAN 聚合仍然显式接收四路特征：
+
+- 当前 P2 路
+- 当前 P3 路
+- 当前 P4 路
+- layer 9 的 P5 深层语义
+
+也就是说，P5 在当前版本里没有被删除，只是从“检测层”降级为“语义聚合输入”。
+
+## 3.3 P2/P3/P4 三个输出分支
+
+三条分支的职责明显不同：
+
+- P2 分支是 tiny 目标主战场，保留了更深的高分辨率处理。
+- P3 分支承担 small 目标，是 P2 与 P4 的中间桥梁。
+- P4 分支不再追求极深堆叠，而是作为 higher-level detection 分支保留必要表征。
+
+当前设计的重点是：高分辨率分支宁可复杂一些，也不把预算继续压到已经被证明对 tiny 目标不敏感的 P5 检测头上。
+
+## 3.4 PRR：RefocusSingle with grid_sample
+
+当前 `PRR-v3` 已不再使用旧版 `softmask` 作为默认实现，而是采用：
+
+- `RefocusSingle(gridsample)`
+
+即通过显式可微采样，对局部区域做重聚焦。
+
+这一步的目标不是新增一个泛化很强的大模块，而是完成一个明确动作：
+
+- 先从 P2/P3 上定位更值得关注的局部区域
+- 再通过局部重采样强化这些区域的特征表达
+
+插入位置也很明确：
+
+- `RepBlock -> RefocusSingle -> MFFF`
+
+这意味着 PRR 是在基础局部表征已经形成之后，再去做空间重聚焦，而不是直接对原始特征做粗暴采样。
+
+## 3.5 小目标增强链路
+
+当前 `PRR-v3` 的小目标增强链路是连续的，而不是单模块试验：
+
+1. `RefocusSingle`
+2. `MFFF`
+3. `FrequencyFocusedDownSampling`
+4. `SemanticAlignmenCalibration`
+
+各模块职责如下：
+
+- `RefocusSingle`：显式空间重聚焦
+- `MFFF`：多频率特征融合
+- `FrequencyFocusedDownSampling`：对下采样过程做频率敏感处理
+- `SemanticAlignmenCalibration`：统一 P2/P3 的语义对齐
+
+当前版本里，这条链路是 `PRR-v3` 的关键结构资产，不属于可以随意删掉的装饰模块。
+
+## 3.6 AsDDet 检测头
+
+最终检测头使用的是 `AsDDet`，不是普通 `Detect`。
+
+当前工程里，这一层已经接入模型解析链，因此最后一层的真实类型就是 `AsDDet`。这点非常关键，因为很多文档错误都来自“YAML 写了 AsDDet，但训练时被回退成普通 Detect”。
+
+当前 `PRR-v3` 已修复这个问题。
+
+## 4. 训练入口与模式解释
+
+当前默认训练入口：
+
+- `train_yolo111 copy.py`
+
+它会根据 `trainer_mode` 决定是否启用结构外的训练策略。
+
+### 4.1 baseline
+
+- 只使用 `PRR-v3 + AsDDet` 结构
+- 不启用 A
+- 不启用 B
+- 不启用 SSDS
+
+这个模式的用途是：验证纯结构增益。
+
+### 4.2 ab
+
+- 启用 `Scale-Routed Optimizer`
+- 启用 `Noise-Aware Batch Curriculum`
+- 不启用 SSDS
+
+这个模式的用途是：验证训练策略增益。
+
+### 4.3 full
+
+- 启用 A
+- 启用 B
+- 启用 SSDS
+
+这是当前项目的默认推荐模式，也是当前文档主线默认对应的训练链路。
+
+## 5. A 策略：Scale-Routed Optimizer
+
+`A` 的目的不是单纯改优化器种类，而是改“不同模块应该用同一套学习率吗”这个前提。
+
+当前实现里，模型参数会被分成三组：
+
+- `backbone`
+- `small_object`
+- `det_head`
+
+其逻辑是：
+
+- backbone 学习率更保守，避免破坏已有基础特征
+- small_object 模块学习率更积极，以便快速学习小目标增强链路
+- det_head 学习率最高，使任务适配更快
+
+这对应当前代码中的默认缩放关系：
+
+- `backbone_lr_scale = 0.5`
+- `smallobj_lr_scale = 1.25`
+- `head_lr_scale = 1.5`
+
+同时，小目标组还会：
+
+- 使用更高的 `beta2`
+- 使用更小的 `weight_decay`
+- 在 `optimizer_step` 里做专属梯度裁剪
+
+这说明 A 不是单一超参，而是一整套“按模块路由训练强度”的策略。
+
+## 6. B 策略：Noise-Aware Batch Curriculum
+
+`B` 的目的不是修改样本本身，而是让“难 batch”获得更大的有效 batch size。
+
+当前实现中，训练器会基于每个 batch 的：
+
+- tiny 目标占比
+- 目标密度
+
+估计难度，并动态调整 `accumulate`。
+
+关键点有三个：
+
+1. `base_accum` 可显式指定，也可沿用 Ultralytics 的自动推导结果。
+2. 难度不是瞬时值，而是 `EMA` 平滑后的 `diff_ema`。
+3. `accumulate` 变化时，`weight_decay` 也会同步缩放，避免“有效 batch 变了但正则强度没变”的隐性不一致。
+
+当前默认逻辑相对温和：
+
+- `medium_accum_scale = 1.25`
+- `hard_accum_scale = 1.5`
+- `max_accum = 24`
+
+这比旧方案更稳，目的就是避免一开始就把训练推到过大的累积步数。
+
+## 7. SSDS：尺度感知监督补强
+
+`SSDS` 的目标是把 tiny/small 目标更明确地压向最适合的检测层。
+
+当前实现不是重写分配器，而是在现有分配结果上做 soft reweighting。
+
+默认阈值：
+
+- `tiny_area_thr = 256`，约等于 `16x16`
+- `small_area_thr = 1024`，约等于 `32x32`
+
+默认放大：
+
+- tiny 在 P2 上放大 `1.5`
+- small 在 P3 上放大 `1.3`
+
+当前推荐模式是 `soft`，因为它保留原分配结构，只做乘法加权，更稳。
+
+## 8. 为什么当前主线是 PRR-v3 + A+B + SSDS
+
+这三者分工不同：
+
+- `PRR-v3` 解决“结构资源如何分配”
+- `A+B` 解决“训练强度如何分配”
+- `SSDS` 解决“监督信号如何分配”
+
+如果只看其中一层，容易误以为模型提升只来自某个模块。但当前工程主线实际追求的是：
+
+- 结构层把 tiny/small 目标送到更合适的特征分支
+- 优化层让这些分支学得更快、更稳
+- 监督层进一步强化 tiny/small 的目标归属
+
+这就是当前主线选择 `full` 的原因。
+
+## 9. 当前推荐训练方式
+
+本地或服务器直接训练时，当前推荐链路是：
 
 ```bash
-# 三位一体（推荐）
-sbatch train_slurm_ab.sh full
-
-# 消融实验
-sbatch train_slurm_ab.sh baseline       # 原始基线
-sbatch train_slurm_ab.sh baseline       # 仅 PRR-v3 结构
-sbatch train_slurm_ab.sh ab             # PRR-v3 + A+B
-sbatch train_slurm_ab.sh full           # PRR-v3 + A+B + SSDS
+python "train_yolo111 copy.py" \
+  --cfg YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3.yaml \
+  --weights yolo11n.pt \
+  --data <your_data_yaml> \
+  --device 0 \
+  --batch 4 \
+  --epochs 300 \
+  --imgsz 640 \
+  --workers 8 \
+  --trainer_mode full \
+  --enable_ssds \
+  --debug_routing
 ```
 
-### 本地调试
+如果是继续训练，也可以把 `--weights` 替换成已有最佳权重路径。
 
-```bash
-# 快速验证模型构建
-python "train_yolo111 copy.py" \
-    --trainer_mode baseline \
-    --cfg YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3.yaml \
-    --data data_VD.yaml --batch 2 --epochs 1
+## 10. 当前版本应如何理解
 
-# 验证 A+B + SSDS 训练流程
-python "train_yolo111 copy.py" \
-    --trainer_mode full \
-    --cfg YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3.yaml \
-    --data data_VD.yaml --batch 2 --epochs 3 \
-    --enable_ssds --debug_routing
-```
+当前 `PRR-v3` 不是“最终论文版定稿”，但它已经是项目里的主训练配置，且具有明确边界：
 
----
+- 默认主模型：`YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3.yaml`
+- 默认训练入口：`train_yolo111 copy.py`
+- 默认推荐模式：`full`
 
-## 📁 文件清单
+如果后续再做轻量化、消融或结构变体，应该以 `PRR-v3` 为主基线展开，而不是反过来让变体代替主线。
 
-### 新增文件
+## 11. 文档使用建议
 
-| 文件 | 作用 |
-|------|------|
-| `ultralytics/nn/core11/refocus_resample.py` | PRR 模块（CandidateHeatmapHead + SoftRefocusEnhancer + GridSampleRefiner） |
-| `ultralytics/engine/scale_supervision.py` | SSDS 尺度感知重加权器 |
-| `ultralytics/utils/NewLoss/ssds_loss.py` | SSDS 增强检测损失 |
-| `YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3.yaml` | 当前默认 PRR-v3 模型配置 |
+这份文档适合作为：
 
-### 修改文件
+- 项目内部结构说明
+- 实验报告中的方法解释底稿
+- 后续论文 Method 部分的技术分解参考
 
-| 文件 | 改动 |
-|------|------|
-| `ultralytics/nn/tasks.py` | 注册 RefocusSingle / P2P3RefocusResample |
-| `ultralytics/engine/optimizer_router.py` | PRR 模块加入小目标分组 |
-| `ultralytics/engine/small_object_trainer.py` | 集成 SSDS init_criterion + 日志呼应 |
-| `ultralytics/engine/trainer.py` | 修复 L1 正则 None 保护 + 删除错误的 model=weights |
-| `ultralytics/nn/core11/GDM.py` | Spatial Reduction Attention 修复 P2 OOM |
-| `train_yolo111 copy.py` | 完整消融开关 + SSDS 参数 |
-| `train_slurm_ab.sh` | 超算脚本支持 baseline / ab / full |
+若用于论文正文，建议进一步提炼成：
 
----
+- 一页结构图说明
+- 一页训练策略说明
+- 一页消融逻辑说明
 
-**文档版本**: v2.0 (PRR 版)
-**最后更新**: 2026-03-25
+当前这份文档的目标是“和代码一致”，优先保证可追溯和可复核。

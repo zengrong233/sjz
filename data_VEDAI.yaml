@@ -1,0 +1,21 @@
+# VEDAI 512x512 dataset configuration
+
+path: C:/Users/86155/Desktop/水经注/代码/2026.4.5/ultralyticsPro--YOLO11/datasets/VEDAI
+train: images/train
+val: images/val
+test: images/test
+
+nc: 11
+
+names:
+  0: car
+  1: truck
+  2: boat
+  3: tractor
+  4: camping_car
+  5: pickup
+  6: plane
+  7: motorcycle
+  8: bus
+  9: van
+  10: other_vehicle

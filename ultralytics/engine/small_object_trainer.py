@@ -120,12 +120,33 @@ class SmallObjectABTrainer(DetectionTrainer):
     # B 策略：初始化 curriculum 调度器
     # ------------------------------------------------------------------
     def _setup_train(self, world_size):
-        """在父类 _setup_train 之后初始化 curriculum 调度器。"""
+        """在父类 _setup_train 之后初始化 curriculum 调度器与 SSDS 损失。"""
         super()._setup_train(world_size)
         self._initial_group_weight_decays = [float(pg.get("weight_decay", 0.0)) for pg in self.optimizer.param_groups]
         self._weight_decay_ref_accum = max(int(self.accumulate), 1)
         self.accumulate = self._resolve_curriculum_base_accum(self.accumulate)
         self._sync_optimizer_weight_decay()
+
+        # SSDS：强制把 SSDSDetectionLoss 注入 model.criterion
+        # 原因：DetectionModel.loss() 调用的是 model.init_criterion()（tasks.py:411）
+        #      而非 trainer.init_criterion()，所以本类 init_criterion 永远不会被触发。
+        # 解决：在首次 forward 之前直接 set model.criterion 与 self.criterion，
+        #      DetectionModel.loss() 看到 criterion 非空会跳过 init_criterion 调用。
+        if self.enable_ssds:
+            from ultralytics.utils.NewLoss.ssds_loss import SSDSDetectionLoss
+            from ultralytics.utils.torch_utils import de_parallel
+            ssds_cfg = {
+                "tiny_area_thr": self.ab_cfg.get("tiny_area_thr", 256),
+                "small_area_thr": self.ab_cfg.get("small_area_thr", 1024),
+                "tiny_boost": self.ab_cfg.get("tiny_boost", 1.5),
+                "small_boost": self.ab_cfg.get("small_boost", 1.3),
+                "ssds_mode": self.ab_cfg.get("ssds_mode", "soft"),
+                "enable_ssds": True,
+            }
+            model_ref = de_parallel(self.model)
+            ssds_loss = SSDSDetectionLoss(model_ref, ssds_cfg=ssds_cfg)
+            model_ref.criterion = ssds_loss  # 供 model.loss() 使用
+            self.criterion = ssds_loss       # 供 save_metrics 读取 reweighter.stats
 
         if self.enable_b:
             self.curriculum = BatchCurriculumScheduler(

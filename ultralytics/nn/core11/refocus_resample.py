@@ -133,6 +133,9 @@ class GridSampleRefiner(nn.Module):
         offset = offset * heatmap.permute(0, 2, 3, 1)
         sample_grid = base_grid + offset
         sample_grid = sample_grid.clamp(-1, 1)
+        # AMP 兼容：grid_sample 要求 input 和 grid 同 dtype
+        # torch.linspace 默认生成 float32，AMP 下 x 为 half，导致 sample_grid 为 float32 → dtype mismatch
+        sample_grid = sample_grid.to(x.dtype)
         # grid_sample 重采样
         resampled = F.grid_sample(x, sample_grid, mode='bilinear', padding_mode='border', align_corners=True)
         enhanced = self.enhance(resampled)
