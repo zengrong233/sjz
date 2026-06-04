@@ -46,7 +46,7 @@ def parse_opt(known=False):
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', 
                        type=str, 
-                       default=os.path.join(PROJECT_DIR, 'YOLO11-P2-Simple.yaml'),
+                       default=os.path.join(PROJECT_DIR, 'YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-SSA-P1-NoSAC-FullC2f.yaml'),
                        help='model yaml path')
     parser.add_argument('--weights', 
                        type=str, 
@@ -54,7 +54,7 @@ def parse_opt(known=False):
                        help='initial weights path')
     parser.add_argument('--data',
                        type=str,
-                       default=os.path.join(PROJECT_DIR, 'data_VD.yaml'),
+                       default=os.path.join(PROJECT_DIR, 'data_RS_STOD.yaml'),
                        help='dataset yaml path')
     parser.add_argument('--device', 
                        type=str,

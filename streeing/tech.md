@@ -36,13 +36,13 @@
 pip install -e .
 
 # Train baseline (PRR-v3 structure only)
-python "train_yolo111 copy.py" --trainer_mode baseline --cfg YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3.yaml --data data_VD.yaml --batch 4
+python "train_yolo111 copy.py" --trainer_mode baseline --cfg YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3.yaml --data data_RS_STOD.yaml --batch 4
 
 # Train with A+B strategy
-python "train_yolo111 copy.py" --trainer_mode ab --cfg YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3.yaml --data data_VD.yaml --batch 4 --debug_routing
+python "train_yolo111 copy.py" --trainer_mode ab --cfg YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3.yaml --data data_RS_STOD.yaml --batch 4 --debug_routing
 
 # Train full stack (recommended)
-python "train_yolo111 copy.py" --trainer_mode full --cfg YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3.yaml --data data_VD.yaml --batch 4 --enable_ssds --debug_routing
+python "train_yolo111 copy.py" --trainer_mode full --cfg YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3.yaml --data data_RS_STOD.yaml --batch 4 --enable_ssds --debug_routing
 
 # Ablation: only A (Scale-Routed Optimizer)
 python "train_yolo111 copy.py" --trainer_mode a --batch 4
@@ -56,7 +56,7 @@ sbatch train_slurm_ab.sh ab
 sbatch train_slurm_ab.sh full
 
 # Validate
-yolo val model=best.pt data=data_VD.yaml
+yolo val model=best.pt data=data_RS_STOD.yaml
 
 # Predict
 yolo predict model=yolo11n.pt source=path/to/image.jpg

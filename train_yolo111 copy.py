@@ -157,7 +157,7 @@ def parse_opt(known=False):
                         default=r'yolo11n.pt',
                         help='预训练权重路径')
     parser.add_argument('--data', type=str,
-                        default=r'data_VD_slurm.yaml',
+                        default=r'data_RS_STOD.yaml',
                         help='数据集 yaml 路径')
     parser.add_argument('--device', type=str, default='0',
                         help='cuda 设备 (例如 0 或 0,1,2,3 或 cpu)')

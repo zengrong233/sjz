@@ -57,9 +57,13 @@ train_yolo111 copy.py         # Main training entry (baseline/a/b/ab modes)
 train_distributed_torchrun.py # Distributed training with torchrun
 train_slurm_ab.sh             # SLURM supercomputer submission script
 
-# Dataset configs
-data_VD.yaml                  # VisDrone dataset (Windows paths)
-data_VD_slurm.yaml            # VisDrone dataset (supercomputer paths)
+# Dataset configs (main-line remote-sensing datasets)
+data_RS_STOD.yaml             # RS-STOD dataset (Windows paths)
+data_RS_STOD_server2.yaml     # RS-STOD dataset (supercomputer paths)
+data_USOD.yaml                # USOD dataset
+data_NWPU-VHR10_5p13.yaml     # NWPU-VHR10 dataset
+data_HRSID-DET_5p30.yaml      # HRSID dataset
+data_LEVIR-Ship-1cls_5p30.yaml # LEVIR-Ship dataset
 
 # Model configs
 YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3.yaml  # 当前 VisDrone 小目标主配置（PRR-v3 + AsDDet）
