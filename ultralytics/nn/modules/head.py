@@ -197,15 +197,9 @@ try:
     elif ARGS_PA.Head[0][2] =='LiteShiftHead':
         from ultralytics.nn.modules.Head.LiteShiftHead import LiteShiftHead as Detect   
         print('使用LiteShiftHead检测头')
-    elif ARGS_PA.Head[0][2] =='PinwheelHead':
-        from ultralytics.nn.modules.Head.PinwheelHead import PinwheelHead as Detect   
-        print('使用PinwheelHead检测头')
     elif ARGS_PA.Head[0][2] =='AdaptiveHead':
         from ultralytics.nn.modules.Head.AdaptiveHead import AdaptiveHead as Detect
         print('使用DynamicHead检测头')
-    elif ARGS_PA.Head[0][2] =='ARHead':
-        from ultralytics.nn.modules.Head.ARDet import ARHead as Detect   
-        print('使用ARHead检测头')
     else:
         pass
 except Exception as e:

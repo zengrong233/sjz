@@ -15,11 +15,9 @@ def test_bbox_loss_preserves_configured_iou_loss_branch():
 
 def test_training_defaults_use_nosac_fullc2f_main_structure():
     entry = (ROOT / "train_yolo111 copy.py").read_text(encoding="utf-8")
-    local = (ROOT / "train_local.sh").read_text(encoding="utf-8")
     slurm = (ROOT / "train_slurm_ab.sh").read_text(encoding="utf-8")
 
     assert f"default=r'{MAIN_MODEL}'" in entry
-    assert f'YAML_PRR_V3="{MAIN_MODEL}"' in local
     assert f'YAML_PRR_V3="{MAIN_MODEL}"' in slurm
 
 

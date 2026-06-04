@@ -20,7 +20,7 @@ mkdir -p logs
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
 
 MODEL=YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-SSA-P1-NoSAC-FullC2f.yaml
-DATA=data_RS_STOD_4p25_runtime.yaml
+DATA=data_RS_STOD_server2.yaml
 WEIGHTS="$PROJECT_DIR/best_pt/yolo11n.pt"
 
 IMGSZ=800

@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is an **enhanced Ultralytics YOLO11 repository** containing the official YOLO11 implementation plus extensive modifications and improvements. The repository includes:
 
 - **Core YOLO11**: Official Ultralytics implementation for object detection, segmentation, pose estimation, and classification
-- **Enhanced configurations**: Over 100+ custom YAML configurations in `ultralytics/cfg_yolo11/` with various architectural improvements
+- **Main-line configurations**: The active detector and its ablation variants are the root-level `YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-*.yaml` files
 - **Custom modules**: Enhanced neural network components in `ultralytics/nn/core11/` and `ultralytics/nn/modules/`
 - **Custom losses**: Advanced loss functions in `ultralytics/utils/NewLoss/`
 - **Training datasets**: Sample 3-class custom detection dataset in `datasets/`
@@ -22,14 +22,8 @@ This is an **enhanced Ultralytics YOLO11 repository** containing the official YO
 - `ultralytics/utils/`: Utilities for data loading, metrics, visualization, etc.
 
 ### Enhanced Components
-- `ultralytics/cfg_yolo11/`: Custom YOLO11 configurations organized by improvement type:
-  - Attention mechanisms (CBAM, EMA, GAM, etc.)
-  - Backbone improvements (ACMix, UAV, etc.)
-  - Conv modifications (DCNv3, DCNv4, etc.)
-  - Head improvements (AsDDet, DynamicHead, etc.)
-  - Loss functions (SIoU, WIoU, NWD, etc.)
-  - Neck/FPN improvements (AFPN, HFAMPAN, etc.)
-- `ultralytics/nn/core11/`: Enhanced neural network building blocks
+- Root-level `YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-*.yaml`: the main-line detector and its ablations (NoMFFF / NoPRR / CIoU / SSALite / LiteD1Only / etc.)
+- `ultralytics/nn/core11/`: Enhanced neural network building blocks used by the main line (PRR/RefocusSingle, MFFF, GDM injection/aggregation, EfficientRep, DySample)
 - `ultralytics/utils/NewLoss/`: Custom loss function implementations
 
 ## Common Development Commands
@@ -49,8 +43,8 @@ yolo train model=yolo11n.pt data=coco8.yaml epochs=100 imgsz=640
 # Custom dataset training (using included 3-class dataset)
 yolo train model=yolo11n.pt data=data_3c.yaml epochs=100 imgsz=640
 
-# Enhanced model training with custom configs
-yolo train model=ultralytics/cfg_yolo11/YOLO11-多个创新点组合改进/YOLO11-HFAMPAN-AsDDet-NWD.yaml data=data_3c.yaml epochs=100 imgsz=640
+# Enhanced model training with the main-line config (root-level YAML)
+yolo train model=YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-SSA-P1-NoSAC-FullC2f-LiteD1R2-NWD-AIMLAux.yaml data=data_3c.yaml epochs=100 imgsz=640
 ```
 
 ### Validation & Testing
@@ -118,7 +112,7 @@ yolo export model=yolo11n.pt format=torchscript
 ## Development Notes
 
 ### Custom Model Configurations
-The repository contains 100+ custom YAML configurations in `ultralytics/cfg_yolo11/` organized by improvement type. These configs can be used directly for training enhanced YOLO11 models.
+The active detector and its ablation variants are the root-level `YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-*.yaml` files. The main-line config is `YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-SSA-P1-NoSAC-FullC2f-LiteD1R2-NWD-AIMLAux.yaml`. (The former `ultralytics/cfg_yolo11/` config zoo of 100+ unrelated improvement demos has been removed to keep the tree focused on the main line.)
 
 ### Dataset Structure
 The included sample dataset follows YOLO format:
