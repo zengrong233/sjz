@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>PRR - P2/P3 Refocusing & Frequency Compensation (Paper-aligned)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#1a1d23; font-family:'Segoe UI','Microsoft YaHei',sans-serif; padding:16px 20px; }
+  svg text { font-family:'Segoe UI','Microsoft YaHei',sans-serif; }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 1200 970" width="1200" height="970" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#ccc"/></marker>
+  <marker id="ad" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#7aafcf"/></marker>
+  <marker id="ag" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#6dbf6d"/></marker>
+  <marker id="ao" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#c07830"/></marker>
+  <marker id="ay" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#c8a030"/></marker>
+  <filter id="glow"><feGaussianBlur stdDeviation="1.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- Title -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<text x="600" y="28" font-size="18" fill="#e0e0e0" text-anchor="middle" font-weight="700">3.5  P2/P3 Refocusing &amp; Frequency Domain Compensation (PRR)</text>
+<text x="600" y="46" font-size="10" fill="#888" text-anchor="middle">Applied to l &#x2208; {P2, P3} only.  P4 output directly feeds head (Eq. 11)</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- LEFT: RefocusSingle  (Refocusing path, Eq. 7-9)           -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<text x="280" y="74" font-size="15" fill="#e0e0e0" text-anchor="middle" font-weight="700">RefocusSingle</text>
+<text x="280" y="90" font-size="9" fill="#888" text-anchor="middle">Candidate Heatmap + Grid-Sample Refiner</text>
+
+<!-- ── Input F_l ── -->
+<rect x="225" y="102" width="110" height="34" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="280" y="118" font-size="11" fill="#fff" text-anchor="middle" font-weight="600">F<tspan font-size="8" dy="3">l</tspan></text>
+<text x="280" y="132" font-size="8" fill="#aac8e8" text-anchor="middle">(B, C, H, W)</text>
+
+<!-- F_l → split -->
+<line x1="280" y1="136" x2="280" y2="158" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+<circle cx="280" cy="164" r="4.5" fill="#ccc"/>
+
+<!-- Split left → heatmap head -->
+<line x1="276" y1="164" x2="130" y2="164" stroke="#ccc" stroke-width="1.3"/>
+<line x1="130" y1="164" x2="130" y2="182" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+
+<!-- Split right → pass-through x -->
+<line x1="284" y1="164" x2="420" y2="164" stroke="#ccc" stroke-width="1.3"/>
+<line x1="420" y1="164" x2="420" y2="182" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  LEFT BRANCH: CandidateHeatmapHead  Ψ_l     ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<rect x="60" y="184" width="140" height="28" rx="6" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1.5"/>
+<text x="130" y="197" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">&#x03A8;<tspan font-size="7" dy="2">l</tspan><tspan dy="-2"> : HeatmapHead</tspan></text>
+<text x="130" y="209" font-size="7.5" fill="#c8b0e0" text-anchor="middle">CandidateResMap</text>
+<line x1="130" y1="212" x2="130" y2="228" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- DWConv 3x3 + BN + SiLU -->
+<rect x="50" y="230" width="160" height="24" rx="5" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1.3"/>
+<text x="130" y="242" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">DWConv 3&#xD7;3 + BN + SiLU</text>
+<text x="130" y="252" font-size="7" fill="#a0d8b0" text-anchor="middle">groups=C</text>
+<line x1="130" y1="254" x2="130" y2="268" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- PWConv 1x1 + BN + SiLU -->
+<rect x="50" y="270" width="160" height="24" rx="5" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1.3"/>
+<text x="130" y="282" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">PWConv 1&#xD7;1 + BN + SiLU</text>
+<text x="130" y="292" font-size="7" fill="#a0d8b0" text-anchor="middle">&#x2192; C/4</text>
+<line x1="130" y1="294" x2="130" y2="308" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- Conv 1x1 + Sigmoid -->
+<rect x="60" y="310" width="140" height="24" rx="5" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1.3"/>
+<text x="130" y="322" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">Conv 1&#xD7;1 &#x2192; Sigmoid (&#x03C3;)</text>
+<text x="130" y="332" font-size="7" fill="#c8b0e0" text-anchor="middle">bias init = -2.0 (sparse prior)</text>
+<line x1="130" y1="334" x2="130" y2="352" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- ── H_l heatmap output ── -->
+<rect x="68" y="354" width="124" height="30" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="130" y="368" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="600">H<tspan font-size="7" dy="2">l</tspan><tspan dy="-2"> = &#x03C3;(&#x03A8;<tspan font-size="7" dy="2">l</tspan><tspan dy="-2">(F<tspan font-size="7" dy="2">l</tspan><tspan dy="-2">))</tspan></tspan></tspan></text>
+<text x="130" y="381" font-size="7.5" fill="#aac8e8" text-anchor="middle">(B, 1, H, W), value &#x2208; [0, 1]</text>
+
+<!-- Eq. (7) label -->
+<text x="10" y="370" font-size="9" fill="#c8a030" font-weight="600">Eq.(7)</text>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  RIGHT BRANCH: F_l pass-through              ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<rect x="370" y="184" width="100" height="28" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="420" y="196" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">F<tspan font-size="7" dy="2">l</tspan></text>
+<text x="420" y="209" font-size="8" fill="#aac8e8" text-anchor="middle">pass-through</text>
+
+<!-- F_l pass-through line down to grid_sample and to skip -->
+<line x1="420" y1="212" x2="420" y2="432" stroke="#6dbf6d" stroke-width="1.5" stroke-dasharray="6,3"/>
+<text x="434" y="328" font-size="8" fill="#6dbf6d" text-anchor="start" transform="rotate(90,434,328)">F<tspan font-size="6" dy="2">l</tspan><tspan dy="-2"> (to grid_sample &amp; skip)</tspan></text>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  CENTER: GridSampleRefiner  Ω_l  (Eq. 7-9)  ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+
+<!-- H_l → offset prediction -->
+<path d="M 130,384 L 130,410 L 210,410" stroke="#7aafcf" stroke-width="1.3" fill="none" marker-end="url(#ad)"/>
+
+<!-- F_l → offset prediction (from pass-through) -->
+<path d="M 420,432 L 350,432 L 350,410 L 320,410" stroke="#6dbf6d" stroke-width="1.3" fill="none" marker-end="url(#ag)"/>
+
+<!-- Ω_l: Offset Prediction Network -->
+<rect x="212" y="398" width="106" height="28" rx="6" fill="#c07830" stroke="#e09848" stroke-width="1.5"/>
+<text x="265" y="410" font-size="9.5" fill="#fff" text-anchor="middle" font-weight="600">&#x03A9;<tspan font-size="7" dy="2">l</tspan><tspan dy="-2"> : offset_pred</tspan></text>
+<text x="265" y="423" font-size="7" fill="#f0d0a0" text-anchor="middle">cat[F<tspan font-size="5" dy="1">l</tspan><tspan dy="-1">, H<tspan font-size="5" dy="1">l</tspan><tspan dy="-1">]</tspan></tspan></text>
+<line x1="265" y1="426" x2="265" y2="440" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- offset_pred internals -->
+<rect x="202" y="442" width="126" height="22" rx="4" fill="#c07830" stroke="#e09848" stroke-width="1.2"/>
+<text x="265" y="453" font-size="8.5" fill="#fff" text-anchor="middle" font-weight="600">Conv3&#xD7;3+BN+SiLU&#x2192;Conv1&#xD7;1</text>
+<text x="265" y="462" font-size="7" fill="#f0d0a0" text-anchor="middle">&#x2192; C/2 &#x2192; 2 channels</text>
+<line x1="265" y1="464" x2="265" y2="478" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- Δ_l output -->
+<rect x="208" y="480" width="114" height="26" rx="5" fill="#c8a030" stroke="#e8c850" stroke-width="1.3"/>
+<text x="265" y="493" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">&#x0394;<tspan font-size="7" dy="2">l</tspan><tspan dy="-2"> = H<tspan font-size="7" dy="2">l</tspan><tspan dy="-2"> &#x2299; &#x03A9;<tspan font-size="7" dy="2">l</tspan><tspan dy="-2">([F<tspan font-size="7" dy="2">l</tspan><tspan dy="-2">,H<tspan font-size="7" dy="2">l</tspan><tspan dy="-2">])</tspan></tspan></tspan></tspan></tspan></tspan></text>
+<text x="265" y="504" font-size="7" fill="#e8d890" text-anchor="middle">(B, 2, H, W), &#xD7;0.1 scaling</text>
+
+<!-- Eq. (7) label -->
+<text x="160" y="496" font-size="9" fill="#c8a030" font-weight="600">Eq.(7)</text>
+<line x1="265" y1="506" x2="265" y2="520" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- ── G_l = G_l^0 + α·Δ_l ── -->
+<rect x="205" y="522" width="120" height="28" rx="6" fill="#c8a030" stroke="#e8c850" stroke-width="1.5"/>
+<text x="265" y="535" font-size="9.5" fill="#fff" text-anchor="middle" font-weight="600">G<tspan font-size="7" dy="2">l</tspan><tspan dy="-2"> = G<tspan font-size="7" dy="2">l</tspan><tspan baseline-shift="super" font-size="6">0</tspan><tspan dy="-2"> + &#x03B1;&#x0394;<tspan font-size="7" dy="2">l</tspan></tspan></tspan></text>
+<text x="265" y="548" font-size="7" fill="#e8d890" text-anchor="middle">base_grid + offset, clamp(-1,1)</text>
+
+<!-- Eq. (8) label -->
+<text x="160" y="540" font-size="9" fill="#c8a030" font-weight="600">Eq.(8)</text>
+<line x1="265" y1="550" x2="265" y2="566" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- ── grid_sample(F_l, G_l) ── -->
+<rect x="195" y="568" width="140" height="28" rx="6" fill="#c07830" stroke="#e09848" stroke-width="1.5"/>
+<text x="265" y="580" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">grid_sample(F<tspan font-size="7" dy="2">l</tspan><tspan dy="-2">, G<tspan font-size="7" dy="2">l</tspan><tspan dy="-2">)</tspan></tspan></text>
+<text x="265" y="593" font-size="7" fill="#f0d0a0" text-anchor="middle">bilinear, border, align_corners</text>
+
+<!-- F_l → grid_sample (from pass-through, branch) -->
+<path d="M 420,432 L 420,582 L 335,582" stroke="#6dbf6d" stroke-width="1.3" fill="none" marker-end="url(#ag)"/>
+
+<!-- resampled → Φ_l enhancement -->
+<line x1="265" y1="596" x2="265" y2="612" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- Φ_l: Enhancement Network -->
+<rect x="195" y="614" width="140" height="28" rx="6" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1.5"/>
+<text x="265" y="626" font-size="9.5" fill="#fff" text-anchor="middle" font-weight="600">&#x03A6;<tspan font-size="7" dy="2">l</tspan><tspan dy="-2"> : Enhance Network</tspan></text>
+<text x="265" y="639" font-size="7" fill="#c8b0e0" text-anchor="middle">Conv1&#xD7;1+BN+SiLU</text>
+<line x1="265" y1="642" x2="265" y2="660" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- γ_l × Φ_l(...) -->
+<text x="265" y="672" font-size="9.5" fill="#e8c850" text-anchor="middle" font-weight="600">&#x03B3;<tspan font-size="7" dy="2">l</tspan><tspan dy="-2"> &#xD7; &#x03A6;<tspan font-size="7" dy="2">l</tspan><tspan dy="-2">(...)</tspan></tspan></text>
+
+<!-- ── ⊕ Residual: F_l + γ_l · Φ_l(grid_sample(F_l, G_l)) ── -->
+<circle cx="265" cy="700" r="15" fill="#2a2d33" stroke="#e8c850" stroke-width="2"/>
+<text x="265" y="701" font-size="15" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">&#x2295;</text>
+
+<!-- F_l skip → ⊕ -->
+<path d="M 420,582 L 420,700 L 280,700" stroke="#6dbf6d" stroke-width="1.5" stroke-dasharray="6,3" fill="none" marker-end="url(#ag)"/>
+
+<!-- Eq. (9) label -->
+<text x="160" y="704" font-size="9" fill="#c8a030" font-weight="600">Eq.(9)</text>
+
+<!-- ── F̃_l Output ── -->
+<line x1="265" y1="715" x2="265" y2="735" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="195" y="737" width="140" height="58" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="265" y="760" font-size="11" fill="#fff" text-anchor="middle" font-weight="600">F&#x0303;<tspan font-size="8" dy="3">l</tspan></text>
+<text x="265" y="778" font-size="7.5" fill="#aac8e8" text-anchor="middle">= F<tspan font-size="5" dy="1">l</tspan><tspan dy="-1"> + &#x03B3;<tspan font-size="5" dy="1">l</tspan><tspan dy="-1"> &#x03A6;<tspan font-size="5" dy="1">l</tspan><tspan dy="-1">(grid_sample(F<tspan font-size="5" dy="1">l</tspan><tspan dy="-1">,G<tspan font-size="5" dy="1">l</tspan><tspan dy="-1">))</tspan></tspan></tspan></tspan></tspan></text>
+
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- RIGHT: MFFF (Eq. 10)                                      -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<text x="830" y="74" font-size="15" fill="#e0e0e0" text-anchor="middle" font-weight="700">MFFF (Multi-Frequency Feature Fusion)</text>
+<text x="830" y="90" font-size="9" fill="#888" text-anchor="middle">Parallel bandpass filters for frequency compensation</text>
+
+<!-- Input F̃_l -->
+<rect x="775" y="102" width="110" height="34" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="830" y="118" font-size="11" fill="#fff" text-anchor="middle" font-weight="600">F&#x0303;<tspan font-size="8" dy="3">l</tspan></text>
+<text x="830" y="132" font-size="8" fill="#aac8e8" text-anchor="middle">(B, C, H, W)</text>
+<line x1="830" y1="136" x2="830" y2="162" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- cv1 -->
+<rect x="772" y="164" width="116" height="30" rx="6" fill="#2a8a8a" stroke="#4ab8b8" stroke-width="1.5"/>
+<text x="830" y="178" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">cv1 (Conv 1&#xD7;1)</text>
+<text x="830" y="190" font-size="7.5" fill="#a0e0e0" text-anchor="middle">channel projection</text>
+<line x1="830" y1="194" x2="830" y2="216" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- Split label -->
+<text x="830" y="228" font-size="9" fill="#aaa" text-anchor="middle" font-weight="600">Channel Split: ratio r = 0.25</text>
+
+<!-- Split point -->
+<circle cx="830" cy="240" r="4.5" fill="#ccc"/>
+<line x1="826" y1="240" x2="700" y2="240" stroke="#ccc" stroke-width="1.3"/>
+<line x1="700" y1="240" x2="700" y2="260" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+<line x1="834" y1="240" x2="970" y2="240" stroke="#ccc" stroke-width="1.3"/>
+<line x1="970" y1="240" x2="970" y2="260" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  LEFT: ok_branch [25% channels]              ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<rect x="640" y="262" width="120" height="26" rx="6" fill="#c07830" stroke="#e09848" stroke-width="1.5"/>
+<text x="700" y="275" font-size="9.5" fill="#fff" text-anchor="middle" font-weight="600">ok_branch</text>
+<text x="700" y="286" font-size="8" fill="#f0d0a0" text-anchor="middle">[25% channels]</text>
+<line x1="700" y1="288" x2="700" y2="308" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+
+<!-- ImprovedFFTKernel large box -->
+<rect x="560" y="310" width="280" height="440" rx="8" fill="#2a2520" stroke="#c07830" stroke-width="1.8" stroke-dasharray="6,3"/>
+<text x="700" y="330" font-size="12" fill="#e0a848" text-anchor="middle" font-weight="700">ImprovedFFTKernel</text>
+
+<!-- in_conv -->
+<rect x="628" y="340" width="144" height="22" rx="5" fill="#c07830" stroke="#e09848" stroke-width="1.3"/>
+<text x="700" y="351" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">Conv 1&#xD7;1 + GELU &#x2192; out</text>
+<line x1="700" y1="362" x2="700" y2="376" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- FCA dual-path split -->
+<circle cx="700" cy="382" r="3.5" fill="#ccc"/>
+<text x="714" y="378" font-size="7.5" fill="#888">out</text>
+
+<!-- FCA Path A: FFT2D (left) -->
+<line x1="696" y1="382" x2="620" y2="382" stroke="#ccc" stroke-width="1.1"/>
+<line x1="620" y1="382" x2="620" y2="396" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+<rect x="592" y="398" width="56" height="22" rx="4" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1.2"/>
+<text x="620" y="409" font-size="8.5" fill="#fff" text-anchor="middle" font-weight="600">FFT2D</text>
+<line x1="620" y1="420" x2="620" y2="434" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- FCA Path B: GAP + Conv1x1 → x_att (right) -->
+<line x1="704" y1="382" x2="778" y2="382" stroke="#ccc" stroke-width="1.1"/>
+<line x1="778" y1="382" x2="778" y2="396" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+<rect x="748" y="398" width="60" height="22" rx="4" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1.2"/>
+<text x="778" y="405" font-size="8" fill="#fff" text-anchor="middle" font-weight="600">GAP</text>
+<text x="778" y="416" font-size="7" fill="#c8b0e0" text-anchor="middle">+Conv1&#xD7;1</text>
+<line x1="778" y1="420" x2="778" y2="434" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- x_att label -->
+<text x="790" y="430" font-size="7.5" fill="#c8a030" font-weight="600">x<tspan font-size="6" dy="2">att</tspan></text>
+
+<!-- × multiply: x_att × FFT2D(out) -->
+<circle cx="700" cy="442" r="10" fill="#2a2d33" stroke="#e8c850" stroke-width="1.8"/>
+<text x="700" y="443" font-size="11" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">&#xD7;</text>
+<line x1="620" y1="434" x2="690" y2="440" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+<line x1="778" y1="434" x2="710" y2="440" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+<line x1="700" y1="452" x2="700" y2="464" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- iFFT2D + |abs| → x_fca -->
+<rect x="665" y="466" width="70" height="22" rx="4" fill="#555" stroke="#888" stroke-width="1.2"/>
+<text x="700" y="473" font-size="8" fill="#fff" text-anchor="middle" font-weight="600">iFFT2D</text>
+<text x="700" y="484" font-size="7" fill="#ccc" text-anchor="middle">|abs| &#x2192; x<tspan font-size="6" dy="1">fca</tspan></text>
+<line x1="700" y1="488" x2="700" y2="500" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- SCA: Conv 1+3+5 multi-scale -->
+<rect x="652" y="502" width="96" height="22" rx="4" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1.2"/>
+<text x="700" y="509" font-size="8" fill="#fff" text-anchor="middle" font-weight="600">Conv 1+3+5</text>
+<text x="700" y="520" font-size="7" fill="#a0d8b0" text-anchor="middle">&#x2192; x<tspan font-size="6" dy="1">sca</tspan></text>
+<line x1="700" y1="524" x2="700" y2="536" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- Channel Attn from x_att (dashed) — expanded internals -->
+<path d="M 790,430 L 808,430 L 808,514 L 762,514" stroke="#c8a030" stroke-width="1.1" stroke-dasharray="3,2" fill="none" marker-end="url(#a)"/>
+<rect x="712" y="498" width="48" height="58" rx="4" fill="#c8a030" stroke="#e8c850" stroke-width="1.2" fill-opacity="0.3"/>
+<text x="736" y="508" font-size="7" fill="#c8a030" font-weight="600" text-anchor="middle">ChAttn</text>
+<text x="736" y="519" font-size="6" fill="#e8d890" text-anchor="middle">Conv1&#xD7;1 C&#x2192;C/4</text>
+<text x="736" y="528" font-size="6" fill="#e8d890" text-anchor="middle">ReLU</text>
+<text x="736" y="537" font-size="6" fill="#e8d890" text-anchor="middle">Conv1&#xD7;1 C/4&#x2192;C</text>
+<text x="736" y="546" font-size="6" fill="#e8d890" text-anchor="middle">Sigmoid</text>
+<!-- × channel weights -->
+<circle cx="700" cy="540" r="8" fill="#2a2d33" stroke="#e8c850" stroke-width="1.5"/>
+<text x="700" y="541" font-size="9" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">&#xD7;</text>
+<line x1="712" y1="540" x2="708" y2="540" stroke="#c8a030" stroke-width="1" marker-end="url(#a)"/>
+<line x1="700" y1="548" x2="700" y2="558" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- FFM — expanded internals -->
+<rect x="640" y="556" width="120" height="104" rx="5" fill="#2a2030" stroke="#7b5ea7" stroke-width="1.3" stroke-dasharray="4,2"/>
+<text x="700" y="568" font-size="8.5" fill="#c8b0e0" text-anchor="middle" font-weight="600">FFM</text>
+<!-- FFM split -->
+<circle cx="700" cy="576" r="3" fill="#ccc"/>
+<!-- left: dwconv1 → x1 -->
+<line x1="697" y1="576" x2="662" y2="576" stroke="#ccc" stroke-width="1"/>
+<line x1="662" y1="576" x2="662" y2="586" stroke="#ccc" stroke-width="1" marker-end="url(#a)"/>
+<rect x="645" y="588" width="34" height="16" rx="3" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1"/>
+<text x="662" y="597" font-size="5.5" fill="#fff" text-anchor="middle">dw<tspan font-size="4.5" dy="1">1</tspan></text>
+<text x="662" y="611" font-size="5" fill="#c8b0e0" text-anchor="middle">x<tspan font-size="4" dy="1">1</tspan></text>
+<line x1="662" y1="604" x2="662" y2="616" stroke="#ccc" stroke-width="0.8"/>
+<!-- right: dwconv2 → x2 → FFT2D -->
+<line x1="703" y1="576" x2="738" y2="576" stroke="#ccc" stroke-width="1"/>
+<line x1="738" y1="576" x2="738" y2="586" stroke="#ccc" stroke-width="1" marker-end="url(#a)"/>
+<rect x="721" y="588" width="34" height="16" rx="3" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1"/>
+<text x="738" y="597" font-size="5.5" fill="#fff" text-anchor="middle">dw<tspan font-size="4.5" dy="1">2</tspan></text>
+<line x1="738" y1="604" x2="738" y2="612" stroke="#ccc" stroke-width="0.8" marker-end="url(#a)"/>
+<rect x="724" y="614" width="28" height="12" rx="2" fill="#555" stroke="#888" stroke-width="0.8"/>
+<text x="738" y="622" font-size="5" fill="#fff" text-anchor="middle">FFT2D</text>
+<!-- × multiply: x1 * FFT(x2) -->
+<circle cx="700" cy="618" r="6" fill="#2a2d33" stroke="#e8c850" stroke-width="1.2"/>
+<text x="700" y="619" font-size="7" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">&#xD7;</text>
+<line x1="662" y1="616" x2="694" y2="618" stroke="#ccc" stroke-width="0.8" marker-end="url(#a)"/>
+<line x1="724" y1="620" x2="706" y2="618" stroke="#ccc" stroke-width="0.8" marker-end="url(#a)"/>
+<line x1="700" y1="624" x2="700" y2="632" stroke="#ccc" stroke-width="0.8" marker-end="url(#a)"/>
+<!-- iFFT2D + |abs| -->
+<rect x="682" y="634" width="36" height="12" rx="2" fill="#555" stroke="#888" stroke-width="0.8"/>
+<text x="700" y="642" font-size="5" fill="#fff" text-anchor="middle">iFFT|abs|</text>
+<line x1="700" y1="646" x2="700" y2="652" stroke="#ccc" stroke-width="0.8"/>
+<!-- α·out + β·x → learnable blend -->
+<text x="700" y="660" font-size="6" fill="#e8c850" text-anchor="middle" font-weight="600">&#x03B1;&#xB7;out + &#x03B2;&#xB7;x</text>
+
+<!-- DW 31x31 path from out -->
+<path d="M 700,382 L 598,382 L 598,694" stroke="#c07830" stroke-width="1" stroke-dasharray="3,2" fill="none"/>
+<rect x="580" y="636" width="52" height="18" rx="3" fill="#c07830" stroke="#e09848" stroke-width="1"/>
+<text x="606" y="645" font-size="7" fill="#fff" text-anchor="middle" font-weight="600">DW 31&#xD7;31</text>
+<text x="606" y="652" font-size="6" fill="#f0d0a0" text-anchor="middle">on out</text>
+<line x1="606" y1="654" x2="606" y2="694" stroke="#c07830" stroke-width="1" marker-end="url(#a)"/>
+
+<!-- DW 1x1 path from out -->
+<path d="M 700,382 L 802,382 L 802,640" stroke="#c07830" stroke-width="1" stroke-dasharray="3,2" fill="none"/>
+<rect x="784" y="636" width="48" height="18" rx="3" fill="#c07830" stroke="#e09848" stroke-width="1"/>
+<text x="808" y="645" font-size="7" fill="#fff" text-anchor="middle" font-weight="600">DW 1&#xD7;1</text>
+<text x="808" y="652" font-size="6" fill="#f0d0a0" text-anchor="middle">on out</text>
+<line x1="808" y1="654" x2="808" y2="694" stroke="#c07830" stroke-width="1" marker-end="url(#a)"/>
+
+<!-- x skip from ImprovedFFTKernel input -->
+<path d="M 590,340 L 590,316 L 818,316 L 818,694" stroke="#6dbf6d" stroke-width="1.3" stroke-dasharray="5,3" fill="none"/>
+<text x="710" y="312" font-size="7.5" fill="#6dbf6d" text-anchor="middle">x skip</text>
+
+<!-- Σ₄: 4-term fusion -->
+<circle cx="700" cy="704" r="14" fill="#2a2d33" stroke="#e8c850" stroke-width="2"/>
+<text x="700" y="700" font-size="11" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">&#x03A3;</text>
+<text x="700" y="713" font-size="7" fill="#e8c850" text-anchor="middle" font-weight="600">4</text>
+<text x="700" y="730" font-size="7" fill="#aaa" text-anchor="middle">x + DW31(out) + DW1(out) + FFM(x<tspan font-size="6" dy="1">sca</tspan><tspan dy="-1">)</tspan></text>
+
+<line x1="700" y1="736" x2="700" y2="748" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- ReLU → out_conv -->
+<rect x="656" y="750" width="88" height="22" rx="4" fill="#555" stroke="#888" stroke-width="1.2"/>
+<text x="700" y="761" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">ReLU &#x2192; Conv1&#xD7;1</text>
+
+<!-- FFT kernel output -->
+<line x1="700" y1="772" x2="700" y2="790" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+<text x="700" y="800" font-size="8.5" fill="#e0a848" text-anchor="middle" font-weight="600">FFT<tspan font-size="7" dy="2">out</tspan></text>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  RIGHT: identity [75% channels]              ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<rect x="910" y="262" width="120" height="26" rx="6" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1.5"/>
+<text x="970" y="275" font-size="9.5" fill="#fff" text-anchor="middle" font-weight="600">identity</text>
+<text x="970" y="286" font-size="8" fill="#a0d8b0" text-anchor="middle">[75% channels]</text>
+<line x1="970" y1="288" x2="970" y2="838" stroke="#6dbf6d" stroke-width="1.5" stroke-dasharray="6,3"/>
+<text x="988" y="560" font-size="8" fill="#6dbf6d" text-anchor="start" transform="rotate(90,988,560)">pass-through</text>
+
+<!-- Cat: FFT_out + identity -->
+<rect x="760" y="855" width="60" height="26" rx="5" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="790" y="868" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">Cat</text>
+<text x="790" y="879" font-size="7" fill="#aac8e8" text-anchor="middle">dim=1</text>
+
+<!-- FFT_out → Cat -->
+<line x1="700" y1="800" x2="700" y2="868" stroke="#ccc" stroke-width="1.3"/>
+<line x1="700" y1="868" x2="756" y2="868" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+<!-- identity → Cat -->
+<line x1="970" y1="838" x2="970" y2="868" stroke="#6dbf6d" stroke-width="1.3"/>
+<line x1="970" y1="868" x2="824" y2="868" stroke="#6dbf6d" stroke-width="1.3" marker-end="url(#ag)"/>
+
+<!-- Cat → cv2 -->
+<line x1="820" y1="868" x2="868" y2="868" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="872" y="855" width="116" height="26" rx="6" fill="#2a8a8a" stroke="#4ab8b8" stroke-width="1.5"/>
+<text x="930" y="868" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">cv2 (Conv 1&#xD7;1)</text>
+
+<!-- ── Z_l = MFFF(F̃_l)  Output ── -->
+<line x1="988" y1="868" x2="1018" y2="868" stroke="#ccc" stroke-width="1.8" marker-end="url(#a)"/>
+<rect x="1022" y="855" width="130" height="30" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="1087" y="869" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">Z<tspan font-size="7" dy="2">l</tspan><tspan dy="-2"> = MFFF(F&#x0303;<tspan font-size="7" dy="2">l</tspan><tspan dy="-2">)</tspan></tspan></text>
+<text x="1087" y="883" font-size="7.5" fill="#aac8e8" text-anchor="middle">(B, C, H, W)</text>
+
+<!-- Eq. (10) label -->
+<text x="1024" y="897" font-size="9" fill="#c8a030" font-weight="600">Eq.(10)</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- Bottom: Head composition (Eq. 11)                         -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<rect x="40" y="925" width="1120" height="32" rx="8" fill="#2a2d33" stroke="#444" stroke-width="1"/>
+<text x="600" y="941" font-size="10" fill="#e0e0e0" text-anchor="middle" font-weight="600">
+  Eq.(11):  &#x1D4AF;<tspan font-size="8" dy="2">head</tspan><tspan dy="-2"> = { Z<tspan font-size="8" dy="2">P2</tspan><tspan dy="-2">,  Z<tspan font-size="8" dy="2">P3</tspan><tspan dy="-2">,  O<tspan font-size="8" dy="2">P4</tspan><tspan dy="-2"> }     &#x2014;  P2-MFFF, P3-MFFF, P4-RepBlock directly feed detection head</tspan></tspan></tspan></tspan></tspan></tspan></tspan>
+</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- SoftRefocusEnhancer alternative annotation box             -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<rect x="456" y="102" width="100" height="180" rx="8" fill="#2a2d33" stroke="#444" stroke-width="1"/>
+<text x="466" y="120" font-size="8.5" fill="#c8a030" font-weight="600">SoftRefocus</text>
+<text x="466" y="132" font-size="8.5" fill="#c8a030" font-weight="600">Enhancer</text>
+<text x="466" y="148" font-size="8" fill="#aaa">(mode=softmask</text>
+<text x="466" y="160" font-size="8" fill="#aaa"> alternative):</text>
+<text x="466" y="178" font-size="7.5" fill="#aaa">weighted = F<tspan font-size="6" dy="1">l</tspan><tspan dy="-1"> &#xD7; H<tspan font-size="6" dy="1">l</tspan></tspan></text>
+<text x="466" y="192" font-size="7.5" fill="#aaa">enhanced =</text>
+<text x="466" y="204" font-size="7.5" fill="#aaa"> DWConv3x3+BN+SiLU</text>
+<text x="466" y="216" font-size="7.5" fill="#aaa"> &#x2192;PWConv1x1+BN+SiLU</text>
+<text x="466" y="232" font-size="7.5" fill="#aaa">F&#x0303;<tspan font-size="6" dy="1">l</tspan><tspan dy="-1">=F<tspan font-size="6" dy="1">l</tspan><tspan dy="-1">+&#x03B3;&#xB7;enhanced</tspan></tspan></text>
+<text x="466" y="248" font-size="7.5" fill="#aaa">(no grid_sample)</text>
+<text x="466" y="264" font-size="7.5" fill="#aaa">(no offset pred.)</text>
+<text x="466" y="278" font-size="7.5" fill="#c8a030" font-weight="600">Default mode</text>
+
+<!-- Arrow from annotation to RefocusSingle output area -->
+<path d="M 456,260 L 440,260 L 440,766 L 335,766" stroke="#888" stroke-width="0.8" stroke-dasharray="3,3" fill="none"/>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- F̃_l connects to MFFF                                      -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- Arrow from RefocusSingle output to MFFF input -->
+<path d="M 335,795 L 500,795 L 500,118 L 775,118" stroke="#5a9ed6" stroke-width="1.8" fill="none" marker-end="url(#ad)"/>
+<text x="510" y="460" font-size="9" fill="#5a9ed6" text-anchor="start" font-weight="600" transform="rotate(-90,510,460)">F&#x0303;<tspan font-size="7" dy="2">l</tspan><tspan dy="-2"> &#x2192; MFFF</tspan></text>
+
+</svg>
+
+<!-- Color legend -->
+<div style="display:flex;gap:20px;justify-content:center;margin-top:8px;flex-wrap:wrap;">
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#3a6ea5;border:1px solid #5a9ed6;display:inline-block;"></span> Input / Output
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#2a8a8a;border:1px solid #4ab8b8;display:inline-block;"></span> Conv Projection
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#7b5ea7;border:1px solid #9b7ec7;display:inline-block;"></span> Branch / Head
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#3a8a5a;border:1px solid #5ab87a;display:inline-block;"></span> Res-Through
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#c07830;border:1px solid #e09848;display:inline-block;"></span> Feature Transform
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#c8a030;border:1px solid #e8c850;display:inline-block;"></span> Energy Combine
+  </span>
+</div>
+<div style="text-align:center;margin-top:6px;color:#666;font-size:10px;">
+  Eq.(7)-(11) refer to Section 3.5 of the paper.  Dashed green = pass-through skip connection.  Dashed yellow = x_att for channel attention.
+</div>
+</body>
+</html>

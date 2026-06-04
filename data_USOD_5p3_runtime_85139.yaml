@@ -1,0 +1,6 @@
+path: /share/home/u2415363072/5.3/ultralyticsPro--YOLO11/datasets/USOD
+train: images/train
+val: images/val
+test: images/test
+nc: 1
+names: ['vehicle']

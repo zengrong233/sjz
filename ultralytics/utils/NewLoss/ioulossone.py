@@ -243,15 +243,22 @@ def bbox_piou(box1, box2, xywh=True, PIoU=False, PIoUv2=False, Lambda=1.3,eps=1e
         return  3*x*torch.exp(-x**2)*L_v1
 
 
-def nwd(a, b):
-    # @from MangoAI &3836712GKcH2717GhcK.
+def nwd(a, b, constant=2.5, eps=1e-7):
+    # Normalized Gaussian Wasserstein Distance for xyxy boxes.
     b1_x1, b1_y1, b1_x2, b1_y2 = a.chunk(4, -1)
     b2_x1, b2_y1, b2_x2, b2_y2 = b.chunk(4, -1)
-    BX_L2Norm = torch.pow((b1_x1 - b2_x1), 2)
-    BY_L2Norm = torch.pow((b1_y1 - b2_y1), 2)
-    p1 = BX_L2Norm + BY_L2Norm
-    w_FroNorm = torch.pow((b1_x2 - b2_x2)/2, 2)
-    h_FroNorm = torch.pow((b1_y2 - b2_y2)/2, 2)
-    p2 = w_FroNorm + h_FroNorm
-    wasserstein = torch.exp(-torch.pow((p1+p2), 1 / 2) / 2.5)
-    return wasserstein
+
+    b1_cx = (b1_x1 + b1_x2) * 0.5
+    b1_cy = (b1_y1 + b1_y2) * 0.5
+    b2_cx = (b2_x1 + b2_x2) * 0.5
+    b2_cy = (b2_y1 + b2_y2) * 0.5
+
+    b1_w = (b1_x2 - b1_x1).clamp(min=eps)
+    b1_h = (b1_y2 - b1_y1).clamp(min=eps)
+    b2_w = (b2_x2 - b2_x1).clamp(min=eps)
+    b2_h = (b2_y2 - b2_y1).clamp(min=eps)
+
+    center_distance = (b1_cx - b2_cx).pow(2) + (b1_cy - b2_cy).pow(2)
+    size_distance = ((b1_w - b2_w).pow(2) + (b1_h - b2_h).pow(2)) / 4
+    wasserstein_distance = torch.sqrt((center_distance + size_distance).clamp(min=0.0))
+    return torch.exp(-wasserstein_distance / constant)

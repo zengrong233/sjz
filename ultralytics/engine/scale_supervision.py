@@ -35,6 +35,11 @@ class ScaleSpecificReweighter:
         small_boost=1.3,
         mode="soft",
         enabled=True,
+        p3_fallback=False,
+        p3_fallback_topk=1,
+        p3_fallback_score=0.2,
+        p3_fallback_min_area=64.0,
+        p3_fallback_max_area=0.0,
     ):
         self.tiny_area_thr = tiny_area_thr
         self.small_area_thr = small_area_thr
@@ -42,11 +47,35 @@ class ScaleSpecificReweighter:
         self.small_boost = small_boost
         self.mode = mode
         self.enabled = enabled
+        self.p3_fallback = p3_fallback
+        self.p3_fallback_topk = max(int(p3_fallback_topk), 1)
+        self.p3_fallback_score = float(p3_fallback_score)
+        self.p3_fallback_min_area = float(p3_fallback_min_area)
+        self.p3_fallback_max_area = float(p3_fallback_max_area) if p3_fallback_max_area else float(small_area_thr)
 
         # 统计日志
-        self.stats = {"tiny_p2_ratio": 0.0, "small_p3_ratio": 0.0, "calls": 0}
+        self.stats = {
+            "tiny_p2_ratio": 0.0,
+            "small_p3_ratio": 0.0,
+            "small_p3_native_ratio": 0.0,
+            "small_p3_fallback_ratio": 0.0,
+            "small_count": 0,
+            "fallback_count": 0,
+            "calls": 0,
+        }
 
-    def reweight(self, target_scores, target_bboxes, fg_mask, n_anchors_per_level, stride_per_anchor):
+    def reweight(
+        self,
+        target_scores,
+        target_bboxes,
+        fg_mask,
+        n_anchors_per_level,
+        stride_per_anchor,
+        anchor_points=None,
+        gt_labels=None,
+        gt_bboxes=None,
+        mask_gt=None,
+    ):
         """
         对 TAL 分配结果做尺度感知重加权。
 
@@ -105,6 +134,23 @@ class ScaleSpecificReweighter:
             weight = torch.where(small_not_p3.unsqueeze(-1), weight.new_full((1,), 0.1), weight)
             weight = torch.where(small_on_p3.unsqueeze(-1), weight.new_full((1,), self.small_boost), weight)
 
+        target_scores = target_scores * weight
+
+        fallback_count = 0
+        fallback_gt_count = 0
+        if self.p3_fallback:
+            target_scores, target_bboxes, fg_mask, fallback_count, fallback_gt_count = self._apply_p3_fallback(
+                target_scores=target_scores,
+                target_bboxes=target_bboxes,
+                fg_mask=fg_mask,
+                p3_mask=p3_mask,
+                stride_per_anchor=stride_per_anchor,
+                anchor_points=anchor_points,
+                gt_labels=gt_labels,
+                gt_bboxes=gt_bboxes,
+                mask_gt=mask_gt,
+            )
+
         # 更新统计
         self.stats["calls"] += 1
         if fg_mask.sum() > 0:
@@ -113,15 +159,92 @@ class ScaleSpecificReweighter:
             if total_tiny > 0:
                 self.stats["tiny_p2_ratio"] = tiny_on_p2.sum().item() / max(total_tiny, 1)
             if total_small > 0:
-                self.stats["small_p3_ratio"] = small_on_p3.sum().item() / max(total_small, 1)
+                native_ratio = small_on_p3.sum().item() / max(total_small, 1)
+                fallback_ratio = fallback_gt_count / max(total_small, 1)
+                self.stats["small_p3_native_ratio"] = native_ratio
+                self.stats["small_p3_fallback_ratio"] = fallback_ratio
+                self.stats["small_p3_ratio"] = min(native_ratio + fallback_ratio, 1.0)
+                self.stats["small_count"] = int(total_small)
+            elif fallback_gt_count > 0:
+                # RS-STOD 等极小目标数据可能没有原生 small 正样本，但 fallback 仍在给 P3 弱监督。
+                self.stats["small_p3_native_ratio"] = 0.0
+                self.stats["small_p3_fallback_ratio"] = 1.0
+                self.stats["small_p3_ratio"] = 1.0
+                self.stats["small_count"] = 0
+            self.stats["fallback_count"] = int(fallback_count)
 
-        return target_scores * weight
+        return target_scores, target_bboxes, fg_mask
+
+    def _apply_p3_fallback(
+        self,
+        target_scores,
+        target_bboxes,
+        fg_mask,
+        p3_mask,
+        stride_per_anchor,
+        anchor_points,
+        gt_labels,
+        gt_bboxes,
+        mask_gt,
+    ):
+        """为 small/near-tiny GT 补少量 P3 弱正样本，避免 P3 分支长期无监督。"""
+        if anchor_points is None or gt_labels is None or gt_bboxes is None or mask_gt is None:
+            return target_scores, target_bboxes, fg_mask, 0, 0
+
+        p3_indices = torch.where(p3_mask)[0]
+        if p3_indices.numel() == 0:
+            return target_scores, target_bboxes, fg_mask, 0, 0
+
+        stride_vals = stride_per_anchor.view(-1, 1)
+        anchor_centers = anchor_points * stride_vals
+        p3_centers = anchor_centers[p3_indices]
+        fallback_count = 0
+        fallback_gt_count = 0
+
+        for b in range(target_scores.shape[0]):
+            valid_gt = mask_gt[b, :, 0].bool()
+            if not valid_gt.any():
+                continue
+
+            boxes = gt_bboxes[b, valid_gt]
+            labels = gt_labels[b, valid_gt, 0].long().clamp_(0, target_scores.shape[-1] - 1)
+            wh = (boxes[:, 2:4] - boxes[:, 0:2]).clamp(min=0)
+            areas_gt = wh[:, 0] * wh[:, 1]
+            candidate = (areas_gt >= self.p3_fallback_min_area) & (areas_gt < self.p3_fallback_max_area)
+            if not candidate.any():
+                continue
+
+            for box, label in zip(boxes[candidate], labels[candidate]):
+                center = (box[:2] + box[2:]) * 0.5
+                inside = (
+                    (p3_centers[:, 0] >= box[0]) &
+                    (p3_centers[:, 0] <= box[2]) &
+                    (p3_centers[:, 1] >= box[1]) &
+                    (p3_centers[:, 1] <= box[3])
+                )
+                candidate_indices = p3_indices[inside] if inside.any() else p3_indices
+                candidate_centers = anchor_centers[candidate_indices]
+                dist = ((candidate_centers - center) ** 2).sum(dim=1)
+                k = min(self.p3_fallback_topk, candidate_indices.numel())
+                selected = candidate_indices[dist.topk(k, largest=False).indices]
+
+                target_bboxes[b, selected] = box
+                fg_mask[b, selected] = True
+                target_scores[b, selected, label] = torch.maximum(
+                    target_scores[b, selected, label],
+                    target_scores.new_full((selected.numel(),), self.p3_fallback_score),
+                )
+                fallback_count += int(selected.numel())
+                fallback_gt_count += 1
+
+        return target_scores, target_bboxes, fg_mask, fallback_count, fallback_gt_count
 
     def get_summary(self):
         """返回统计摘要。"""
         return (
             f"tiny_p2={self.stats['tiny_p2_ratio']:.3f} | "
             f"small_p3={self.stats['small_p3_ratio']:.3f} | "
+            f"p3_fb={self.stats['small_p3_fallback_ratio']:.3f}/{self.stats['fallback_count']} | "
             f"calls={self.stats['calls']}"
         )
 

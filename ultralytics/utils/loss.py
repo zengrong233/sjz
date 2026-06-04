@@ -213,6 +213,7 @@ class BboxLoss(nn.Module):
                 iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
                 wasserstein = nwd(pred_bboxes[fg_mask], target_bboxes[fg_mask])
             elif useloss == 'GWD': # GWDLoss损失函数
+                iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
                 gwdloss = GWD(pred_bboxes[fg_mask], target_bboxes[fg_mask])
             elif useloss == 'KLDLoss': # KLDLoss损失函数
                 kldloss = kldloss(pred_bboxes[fg_mask], target_bboxes[fg_mask])
@@ -265,9 +266,9 @@ class BboxLoss(nn.Module):
             useloss = ARGS_PA.loss # TAL执行的时候默认使用CIoU, 所以默认会打印
             if useloss == 'WIoU':
                 loss_iou = (loss * weight).sum() / target_scores_sum
-            if useloss == 'NWD':
+            elif useloss == 'NWD':
                 loss_iou = (0.7 * ((1.0 - iou) * weight).sum() + 0.3 * ((1.0 - wasserstein) * weight).sum()) / target_scores_sum
-            if useloss == 'GWD':
+            elif useloss == 'GWD':
                 loss_iou = (0.6 * ((1.0 - iou) * weight).sum() + 0.4 * ((1.0 - gwdloss) * weight).sum()) / target_scores_sum
             else:
                 loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
@@ -333,7 +334,6 @@ class BboxLoss(nn.Module):
             Focal Loss改进各类Loss：FocalCIoU、FocalDIoU、FocalEIoU、FocalGIoU、FocalSIoU、FocalWIoU、Focal_PIoU、Focal_PIoUv2、
         '''
         # iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
-        loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
 
         # DFL loss
         if self.dfl_loss:
@@ -432,6 +432,39 @@ class v8DetectionLoss:
         self.assigner = TaskAlignedAssigner(topk=tal_topk, num_classes=self.nc, alpha=0.5, beta=6.0)
         self.bbox_loss = BboxLoss(m.reg_max).to(device)
         self.proj = torch.arange(m.reg_max, dtype=torch.float, device=device)
+        cfg = globals().get("ARGS_PA", None)
+        self.fd_aux = self._cfg_bool(getattr(cfg, "fd_aux", False))
+        self.fd_aux_weight = float(getattr(cfg, "fd_aux_weight", 0.0) or 0.0)
+        self.fd_aux_levels = self._cfg_levels(getattr(cfg, "fd_aux_levels", [0, 1]))
+        self.fd_aux_area_thr = float(getattr(cfg, "fd_aux_area_thr", 1024.0) or 0.0)
+        self.fd_aux_min_samples = int(getattr(cfg, "fd_aux_min_samples", 8) or 8)
+        self.fd_aux_max_samples = int(getattr(cfg, "fd_aux_max_samples", 512) or 512)
+        self.fd_aux_eps = float(getattr(cfg, "fd_aux_eps", 1e-6) or 1e-6)
+
+    @staticmethod
+    def _cfg_bool(value):
+        """Parse YAML/string booleans without making 'false' truthy."""
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+        return bool(value)
+
+    @staticmethod
+    def _cfg_levels(value):
+        """Normalize fd_aux_levels from YAML list or comma-separated string."""
+        if isinstance(value, str):
+            value = [v.strip() for v in value.split(",") if v.strip()]
+        if isinstance(value, (list, tuple)):
+            levels = []
+            for v in value:
+                try:
+                    levels.append(int(v))
+                except (TypeError, ValueError):
+                    continue
+            return levels or [0, 1]
+        try:
+            return [int(value)]
+        except (TypeError, ValueError):
+            return [0, 1]
 
     def preprocess(self, targets, batch_size, scale_tensor):
         """Preprocesses the target counts and matches with the input batch size to output a tensor."""
@@ -459,6 +492,81 @@ class v8DetectionLoss:
             # pred_dist = pred_dist.view(b, a, c // 4, 4).transpose(2,3).softmax(3).matmul(self.proj.type(pred_dist.dtype))
             # pred_dist = (pred_dist.view(b, a, c // 4, 4).softmax(2) * self.proj.type(pred_dist.dtype).view(1, 1, -1, 1)).sum(2)
         return dist2bbox(pred_dist, anchor_points, xywh=False)
+
+    def _diag_frechet_loss(self, src, ref):
+        """Diagonal Fréchet-style distance between two feature distributions."""
+        if src.shape[0] < self.fd_aux_min_samples or ref.shape[0] < self.fd_aux_min_samples:
+            return src.new_zeros(())
+
+        if src.shape[0] > self.fd_aux_max_samples:
+            idx = torch.linspace(0, src.shape[0] - 1, self.fd_aux_max_samples, device=src.device).long()
+            src = src.index_select(0, idx)
+        if ref.shape[0] > self.fd_aux_max_samples:
+            idx = torch.linspace(0, ref.shape[0] - 1, self.fd_aux_max_samples, device=ref.device).long()
+            ref = ref.index_select(0, idx)
+
+        src = F.layer_norm(src.float(), (src.shape[-1],))
+        ref = F.layer_norm(ref.float(), (ref.shape[-1],)).detach()
+        src_mean, ref_mean = src.mean(0), ref.mean(0)
+        src_std = src.var(0, unbiased=False).add(self.fd_aux_eps).sqrt()
+        ref_std = ref.var(0, unbiased=False).add(self.fd_aux_eps).sqrt()
+        return (src_mean - ref_mean).pow(2).mean() + (src_std - ref_std).pow(2).mean()
+
+    def _fd_feature_loss(self, feats, fg_mask, gt_bboxes, mask_gt):
+        """Match P2/P3 positive-anchor features to GT-center feature statistics."""
+        if not (self.fd_aux and self.fd_aux_weight > 0.0 and fg_mask.any()):
+            return feats[0].new_zeros(())
+
+        batch_size = feats[0].shape[0]
+        offsets = [0]
+        for feat in feats:
+            offsets.append(offsets[-1] + feat.shape[2] * feat.shape[3])
+
+        fd_loss = feats[0].new_zeros(())
+        used_levels = 0
+        for level in self.fd_aux_levels:
+            if level < 0 or level >= len(feats):
+                continue
+
+            feat = feats[level]
+            _, channels, height, width = feat.shape
+            start, end = offsets[level], offsets[level + 1]
+            pos_mask = fg_mask[:, start:end].bool()
+            if not pos_mask.any():
+                continue
+
+            level_flat = feat.permute(0, 2, 3, 1).reshape(batch_size, height * width, channels)
+            pos_feat = level_flat[pos_mask]
+
+            stride = float(self.stride[level].detach().item() if torch.is_tensor(self.stride[level]) else self.stride[level])
+            refs = []
+            for bi in range(batch_size):
+                valid = mask_gt[bi, :, 0].bool()
+                boxes = gt_bboxes[bi, valid]
+                if boxes.numel() == 0:
+                    continue
+
+                areas = (boxes[:, 2] - boxes[:, 0]).clamp(min=0) * (boxes[:, 3] - boxes[:, 1]).clamp(min=0)
+                if self.fd_aux_area_thr > 0:
+                    boxes = boxes[areas <= self.fd_aux_area_thr]
+                    if boxes.numel() == 0:
+                        continue
+
+                centers = (boxes[:, :2] + boxes[:, 2:]) * 0.5
+                gx = (centers[:, 0] / stride - 0.5).round().long().clamp(0, width - 1)
+                gy = (centers[:, 1] / stride - 0.5).round().long().clamp(0, height - 1)
+                refs.append(feat[bi, :, gy, gx].transpose(0, 1))
+
+            if not refs:
+                continue
+
+            ref_feat = torch.cat(refs, 0)
+            level_loss = self._diag_frechet_loss(pos_feat, ref_feat)
+            if torch.isfinite(level_loss):
+                fd_loss = fd_loss + level_loss
+                used_levels += 1
+
+        return fd_loss / max(used_levels, 1)
 
     def __call__(self, preds, batch):
         """Calculate the sum of the loss for box, cls and dfl multiplied by batch size."""
@@ -560,7 +668,9 @@ class v8DetectionLoss:
         # loss[1] = self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum  # BCE
 
         # Bbox loss
+        fd_loss = torch.zeros((), device=self.device, dtype=dtype)
         if fg_mask.sum():
+            fd_loss = self._fd_feature_loss(feats, fg_mask, gt_bboxes, mask_gt)
             target_bboxes /= stride_tensor
             loss[0], loss[2] = self.bbox_loss(
                 pred_distri, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask
@@ -569,8 +679,9 @@ class v8DetectionLoss:
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
         loss[2] *= self.hyp.dfl  # dfl gain
+        fd_loss = fd_loss * self.fd_aux_weight
 
-        return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl)
+        return (loss.sum() + fd_loss) * batch_size, loss.detach()  # loss(box, cls, dfl)
 
 
 class v8SegmentationLoss(v8DetectionLoss):

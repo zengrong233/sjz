@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>P2-LIR Detailed Data Flow (Layer 23-26)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#1a1d23; font-family:'Segoe UI','Microsoft YaHei',sans-serif; padding:16px 20px; }
+  svg text { font-family:'Segoe UI','Microsoft YaHei',sans-serif; }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 900 1360" width="900" height="1360" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#ccc"/></marker>
+  <marker id="ad" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#7aafcf"/></marker>
+  <marker id="ag" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#6dbf6d"/></marker>
+  <marker id="ao" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#c07830"/></marker>
+</defs>
+
+<!-- Title -->
+<text x="450" y="28" font-size="18" fill="#e0e0e0" text-anchor="middle" font-weight="700">P2-LIR Data Flow (Layer 23 &#x2013; 26)</text>
+<text x="450" y="46" font-size="10" fill="#888" text-anchor="middle">TopBasicLayer &#x2192; LAF_h &#x2192; InjectionMultiSum_Auto_pool2 &#x2192; RepBlock</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- External inputs                                             -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- 21 P2-C2f -->
+<rect x="100" y="62" width="160" height="36" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="180" y="77" font-size="11" fill="#fff" text-anchor="middle" font-weight="600">21 P2-C2f</text>
+<text x="180" y="93" font-size="8" fill="#aac8e8" text-anchor="middle">original feature (B,C,H,W)</text>
+
+<!-- 22 PyramidPoolAgg -->
+<rect x="560" y="62" width="180" height="36" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="650" y="77" font-size="11" fill="#fff" text-anchor="middle" font-weight="600">22 PyramidPoolAgg</text>
+<text x="650" y="93" font-size="8" fill="#aac8e8" text-anchor="middle">global semantic x_g</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- 1. Layer 23: TopBasicLayer (depth=1)                       -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- Layer badge -->
+<rect x="30" y="118" width="56" height="22" rx="4" fill="#c07830" stroke="#e09848" stroke-width="1.2"/>
+<text x="58" y="130" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">23</text>
+<text x="100" y="132" font-size="14" fill="#e0a848" font-weight="700">TopBasicLayer (depth=1)</text>
+
+<!-- Input from 21 P2-C2f -->
+<path d="M 180,98 L 180,110 L 450,110 L 450,140" stroke="#5a9ed6" stroke-width="1.5" fill="none" marker-end="url(#ad)"/>
+
+<!-- Input box -->
+<rect x="395" y="142" width="110" height="26" rx="5" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.3"/>
+<text x="450" y="155" font-size="9.5" fill="#fff" text-anchor="middle" font-weight="600">Input from 21</text>
+<text x="450" y="166" font-size="7.5" fill="#aac8e8" text-anchor="middle">(B, C, H, W)</text>
+<line x1="450" y1="168" x2="450" y2="186" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+
+<!-- top_Block × 1 large box -->
+<rect x="200" y="188" width="500" height="210" rx="8" fill="#2a2520" stroke="#c07830" stroke-width="1.8" stroke-dasharray="6,3"/>
+<text x="450" y="208" font-size="12" fill="#e0a848" text-anchor="middle" font-weight="700">top_Block &#xD7; 1</text>
+
+<!-- x input split -->
+<circle cx="450" cy="222" r="4" fill="#ccc"/>
+
+<!-- Attention branch (left) -->
+<line x1="446" y1="222" x2="320" y2="222" stroke="#ccc" stroke-width="1.2"/>
+<line x1="320" y1="222" x2="320" y2="238" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- MLP branch (right) -->
+<line x1="454" y1="222" x2="580" y2="222" stroke="#ccc" stroke-width="1.2"/>
+<line x1="580" y1="222" x2="580" y2="238" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- ── Attention sub-box ── -->
+<rect x="222" y="240" width="196" height="130" rx="5" fill="#2a2030" stroke="#7b5ea7" stroke-width="1.3" stroke-dasharray="4,2"/>
+<text x="320" y="254" font-size="9" fill="#c8b0e0" text-anchor="middle" font-weight="600">Attention</text>
+
+<!-- Q/K/V -->
+<rect x="234" y="262" width="54" height="16" rx="3" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1"/>
+<text x="261" y="272" font-size="6.5" fill="#fff" text-anchor="middle" font-weight="600">Q=Conv1&#xD7;1</text>
+<rect x="294" y="262" width="54" height="16" rx="3" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1"/>
+<text x="321" y="272" font-size="6.5" fill="#fff" text-anchor="middle" font-weight="600">K=Conv1&#xD7;1</text>
+<rect x="354" y="262" width="54" height="16" rx="3" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1"/>
+<text x="381" y="272" font-size="6.5" fill="#fff" text-anchor="middle" font-weight="600">V=Conv1&#xD7;1</text>
+
+<!-- SR condition -->
+<rect x="240" y="286" width="160" height="18" rx="3" fill="#c07830" stroke="#e09848" stroke-width="1"/>
+<text x="320" y="296" font-size="6.5" fill="#fff" text-anchor="middle" font-weight="600">if H&#xD7;W&gt;4096: K,V AvgPool(s=4)</text>
+
+<!-- softmax(QK^T)V -->
+<rect x="250" y="310" width="140" height="16" rx="3" fill="#c8a030" stroke="#e8c850" stroke-width="1.1"/>
+<text x="320" y="320" font-size="7" fill="#fff" text-anchor="middle" font-weight="600">softmax(QK^T) &#xD7; V</text>
+
+<!-- Proj -->
+<rect x="262" y="332" width="116" height="16" rx="3" fill="#555" stroke="#888" stroke-width="1"/>
+<text x="320" y="342" font-size="7" fill="#fff" text-anchor="middle" font-weight="600">Proj: ReLU6+Conv1&#xD7;1</text>
+
+<!-- DropPath from attention -->
+<text x="320" y="362" font-size="7" fill="#aaa" text-anchor="middle">DropPath</text>
+
+<!-- ── MLP sub-box ── -->
+<rect x="482" y="240" width="196" height="110" rx="5" fill="#203020" stroke="#3a8a5a" stroke-width="1.3" stroke-dasharray="4,2"/>
+<text x="580" y="254" font-size="9" fill="#a0d8b0" text-anchor="middle" font-weight="600">MLP</text>
+
+<rect x="504" y="264" width="152" height="14" rx="3" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1"/>
+<text x="580" y="274" font-size="6.5" fill="#fff" text-anchor="middle">fc1: Conv1&#xD7;1 (C&#x2192;C&#xD7;mlp_ratio)</text>
+<rect x="504" y="282" width="152" height="14" rx="3" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1"/>
+<text x="580" y="292" font-size="6.5" fill="#fff" text-anchor="middle">DWConv 3&#xD7;3 + ReLU6 + Dropout</text>
+<rect x="504" y="300" width="152" height="14" rx="3" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1"/>
+<text x="580" y="310" font-size="6.5" fill="#fff" text-anchor="middle">fc2: Conv1&#xD7;1 (C&#xD7;mlp_ratio&#x2192;C)</text>
+
+<!-- DropPath from MLP -->
+<text x="580" y="342" font-size="7" fill="#aaa" text-anchor="middle">DropPath</text>
+
+<!-- Residual additions -->
+<!-- x + DropPath(attn) -->
+<circle cx="320" cy="374" r="10" fill="#2a2d33" stroke="#e8c850" stroke-width="1.5"/>
+<text x="320" y="375" font-size="10" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">&#x2295;</text>
+<path d="M 450,222 L 212,222 L 212,374 L 310,374" stroke="#6dbf6d" stroke-width="1.2" stroke-dasharray="5,3" fill="none" marker-end="url(#ag)"/>
+<text x="206" y="298" font-size="6.5" fill="#6dbf6d" text-anchor="start" transform="rotate(-90,206,298)">x skip</text>
+
+<!-- x1 + DropPath(mlp) -->
+<circle cx="580" cy="374" r="10" fill="#2a2d33" stroke="#e8c850" stroke-width="1.5"/>
+<text x="580" y="375" font-size="10" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">&#x2295;</text>
+<path d="M 330,374 L 570,374" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+<text x="450" y="370" font-size="6.5" fill="#aaa" text-anchor="middle">x1 = x + Attn(x)</text>
+<path d="M 450,222 L 690,222 L 690,374 L 590,374" stroke="#6dbf6d" stroke-width="1.2" stroke-dasharray="5,3" fill="none" marker-end="url(#ag)"/>
+<text x="696" y="298" font-size="6.5" fill="#6dbf6d" text-anchor="start" transform="rotate(90,696,298)">x1 skip</text>
+
+<!-- Formula -->
+<text x="450" y="396" font-size="8" fill="#e0e0e0" text-anchor="middle" font-weight="600">x2 = x1 + DropPath(MLP(x1))</text>
+
+<!-- Conv1x1 -->
+<line x1="450" y1="400" x2="450" y2="416" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+<rect x="382" y="418" width="136" height="22" rx="5" fill="#2a8a8a" stroke="#4ab8b8" stroke-width="1.3"/>
+<text x="450" y="429" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">conv_1x1_n (Conv 1&#xD7;1)</text>
+
+<!-- Layer 23 output -->
+<line x1="450" y1="440" x2="450" y2="462" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="370" y="464" width="160" height="30" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="450" y="479" font-size="11" fill="#fff" text-anchor="middle" font-weight="600">23 TopBasic Output</text>
+<text x="450" y="492" font-size="8" fill="#aac8e8" text-anchor="middle">(B, C, H, W)</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- 2. Layer 24: LAF_h(23, 21)                                -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- Layer badge -->
+<rect x="30" y="516" width="56" height="22" rx="4" fill="#c07830" stroke="#e09848" stroke-width="1.2"/>
+<text x="58" y="528" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">24</text>
+<text x="100" y="530" font-size="14" fill="#e0a848" font-weight="700">LAF_h (23, 21)</text>
+
+<!-- 23 TopBasic → LAF_h -->
+<line x1="450" y1="494" x2="450" y2="548" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- 21 P2-C2f also feeds into LAF_h (second input) -->
+<path d="M 180,98 L 180,110 L 120,110 L 120,548 L 250,548" stroke="#5a9ed6" stroke-width="1.5" fill="none" marker-end="url(#ad)"/>
+<text x="112" y="330" font-size="8" fill="#5a9ed6" text-anchor="start" transform="rotate(-90,112,330)">21 P2-C2f &#x2192; LAF_h</text>
+
+<!-- Two inputs to LAF_h -->
+<rect x="250" y="548" width="180" height="24" rx="5" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.3"/>
+<text x="340" y="560" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">21 P2-C2f (original)</text>
+<text x="340" y="570" font-size="7" fill="#aac8e8" text-anchor="middle">higher resolution</text>
+
+<rect x="450" y="548" width="180" height="24" rx="5" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.3"/>
+<text x="540" y="560" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">23 TopBasic Output</text>
+<text x="540" y="570" font-size="7" fill="#aac8e8" text-anchor="middle">transformer-enhanced</text>
+
+<!-- 21 P2-C2f → AdaptiveAvgPool -->
+<line x1="340" y1="572" x2="340" y2="592" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+<rect x="260" y="594" width="160" height="24" rx="4" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1.3"/>
+<text x="340" y="606" font-size="8.5" fill="#fff" text-anchor="middle" font-weight="600">AdaptiveAvgPool2d</text>
+<text x="340" y="616" font-size="7" fill="#a0d8b0" text-anchor="middle">pool to 23&#x2019;s spatial size H&#xD7;W</text>
+
+<!-- 23 TopBasic pass-through -->
+<line x1="540" y1="572" x2="540" y2="592" stroke="#6dbf6d" stroke-width="1.2" stroke-dasharray="5,3"/>
+
+<!-- Cat -->
+<line x1="340" y1="618" x2="340" y2="640" stroke="#ccc" stroke-width="1.2"/>
+<line x1="540" y1="592" x2="540" y2="640" stroke="#6dbf6d" stroke-width="1.2" stroke-dasharray="5,3"/>
+<rect x="350" y="640" width="180" height="26" rx="5" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="440" y="653" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">Cat (dim=1)</text>
+<text x="440" y="664" font-size="7.5" fill="#aac8e8" text-anchor="middle">[pooled_21, 23_output]</text>
+
+<!-- Layer 24 output -->
+<line x1="440" y1="666" x2="440" y2="690" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="360" y="692" width="160" height="30" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="440" y="707" font-size="11" fill="#fff" text-anchor="middle" font-weight="600">24 LAF_h Output</text>
+<text x="440" y="720" font-size="8" fill="#aac8e8" text-anchor="middle">(B, C1+C2, H, W)</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- 3. Layer 25: InjectionMultiSum_Auto_pool2 (24, 22)         -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- Layer badge -->
+<rect x="30" y="746" width="56" height="22" rx="4" fill="#c07830" stroke="#e09848" stroke-width="1.2"/>
+<text x="58" y="758" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">25</text>
+<text x="100" y="760" font-size="14" fill="#e0a848" font-weight="700">InjectionMultiSum_Auto_pool2 (24, 22)</text>
+
+<!-- 24 LAF_h output → x_l -->
+<line x1="440" y1="722" x2="440" y2="782" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- 22 PyramidPoolAgg → x_g -->
+<path d="M 650,98 L 650,110 L 780,110 L 780,782 L 650,782" stroke="#5a9ed6" stroke-width="1.5" fill="none" marker-end="url(#ad)"/>
+<text x="788" y="450" font-size="8" fill="#5a9ed6" text-anchor="start" transform="rotate(90,788,450)">22 PyramidPoolAgg &#x2192; x_g</text>
+
+<!-- Two inputs -->
+<rect x="260" y="784" width="160" height="26" rx="5" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.3"/>
+<text x="340" y="797" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">x_l = 24 LAF_h out</text>
+<text x="340" y="808" font-size="7" fill="#aac8e8" text-anchor="middle">local feature</text>
+
+<rect x="470" y="784" width="180" height="26" rx="5" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.3"/>
+<text x="560" y="797" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">x_g = 22 PyrPoolAgg</text>
+<text x="560" y="808" font-size="7" fill="#aac8e8" text-anchor="middle">global semantic</text>
+
+<!-- x_g split -->
+<line x1="560" y1="810" x2="560" y2="830" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+<rect x="490" y="832" width="140" height="20" rx="4" fill="#c07830" stroke="#e09848" stroke-width="1.2"/>
+<text x="560" y="842" font-size="7.5" fill="#fff" text-anchor="middle" font-weight="600">split &#x2192; [G0, G1]</text>
+<text x="560" y="850" font-size="6.5" fill="#f0d0a0" text-anchor="middle">pool2 uses G1</text>
+
+<circle cx="560" cy="862" r="3.5" fill="#ccc"/>
+
+<!-- G1 → global_act (left) -->
+<line x1="556" y1="862" x2="480" y2="862" stroke="#ccc" stroke-width="1"/>
+<line x1="480" y1="862" x2="480" y2="876" stroke="#ccc" stroke-width="1" marker-end="url(#a)"/>
+<!-- G1 → global_embedding (right) -->
+<line x1="564" y1="862" x2="640" y2="862" stroke="#ccc" stroke-width="1"/>
+<line x1="640" y1="862" x2="640" y2="876" stroke="#ccc" stroke-width="1" marker-end="url(#a)"/>
+
+<!-- global_act -->
+<rect x="420" y="878" width="120" height="20" rx="4" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1.2"/>
+<text x="480" y="888" font-size="7.5" fill="#fff" text-anchor="middle" font-weight="600">global_act: Conv1&#xD7;1</text>
+<text x="480" y="896" font-size="6" fill="#c8b0e0" text-anchor="middle">G1 &#x2192; oup</text>
+
+<!-- global_embedding -->
+<rect x="580" y="878" width="120" height="20" rx="4" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1.2"/>
+<text x="640" y="888" font-size="7.5" fill="#fff" text-anchor="middle" font-weight="600">global_embed: Conv1&#xD7;1</text>
+<text x="640" y="896" font-size="6" fill="#c8b0e0" text-anchor="middle">G1 &#x2192; oup</text>
+
+<!-- Spatial alignment -->
+<line x1="480" y1="898" x2="480" y2="914" stroke="#ccc" stroke-width="1"/>
+<line x1="640" y1="898" x2="640" y2="914" stroke="#ccc" stroke-width="1"/>
+
+<rect x="410" y="916" width="300" height="36" rx="5" fill="#2a2d33" stroke="#c8a030" stroke-width="1.3"/>
+<text x="560" y="928" font-size="7.5" fill="#c8a030" font-weight="600" text-anchor="middle">Spatial Alignment</text>
+<text x="560" y="940" font-size="7" fill="#aaa" text-anchor="middle">if use_pool (H_l&lt;H_g): AvgPool &#x2192; sig_act, global_feat</text>
+<text x="560" y="950" font-size="7" fill="#aaa" text-anchor="middle">else: h_sigmoid(global_act)+interp; interp(global_embed) &#x2192; H&#xD7;W</text>
+
+<!-- sig_act -->
+<line x1="480" y1="952" x2="480" y2="968" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+<rect x="440" y="970" width="80" height="20" rx="4" fill="#c8a030" stroke="#e8c850" stroke-width="1.2"/>
+<text x="480" y="980" font-size="8" fill="#fff" text-anchor="middle" font-weight="600">sig_act</text>
+
+<!-- global_feat -->
+<line x1="640" y1="952" x2="640" y2="968" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+<rect x="590" y="970" width="100" height="20" rx="4" fill="#c8a030" stroke="#e8c850" stroke-width="1.2"/>
+<text x="640" y="980" font-size="8" fill="#fff" text-anchor="middle" font-weight="600">global_feat</text>
+
+<!-- x_l → local_embedding -->
+<line x1="340" y1="810" x2="340" y2="876" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+<rect x="270" y="878" width="140" height="20" rx="4" fill="#2a8a8a" stroke="#4ab8b8" stroke-width="1.2"/>
+<text x="340" y="888" font-size="8" fill="#fff" text-anchor="middle" font-weight="600">local_embedding: Conv1&#xD7;1</text>
+<text x="340" y="896" font-size="6.5" fill="#a0e0e0" text-anchor="middle">C_l &#x2192; oup, no act</text>
+<line x1="340" y1="898" x2="340" y2="968" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+<rect x="290" y="970" width="100" height="20" rx="4" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.2"/>
+<text x="340" y="980" font-size="8" fill="#fff" text-anchor="middle" font-weight="600">local_feat</text>
+
+<!-- × local_feat * sig_act -->
+<circle cx="440" cy="1014" r="10" fill="#2a2d33" stroke="#e8c850" stroke-width="1.8"/>
+<text x="440" y="1015" font-size="11" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">&#xD7;</text>
+<path d="M 340,990 L 340,1014 L 430,1014" stroke="#7aafcf" stroke-width="1.2" fill="none" marker-end="url(#ad)"/>
+<line x1="480" y1="990" x2="446" y2="1008" stroke="#c8a030" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- + global_feat -->
+<circle cx="580" cy="1014" r="10" fill="#2a2d33" stroke="#e8c850" stroke-width="1.8"/>
+<text x="580" y="1015" font-size="11" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">+</text>
+<line x1="450" y1="1014" x2="570" y2="1014" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+<line x1="640" y1="990" x2="586" y2="1008" stroke="#c8a030" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- Output formula -->
+<line x1="580" y1="1024" x2="580" y2="1044" stroke="#ccc" stroke-width="1.3"/>
+<text x="450" y="1056" font-size="9" fill="#e0e0e0" text-anchor="middle" font-weight="600">out = local_feat &#xD7; sig_act + global_feat</text>
+
+<!-- Layer 25 output -->
+<line x1="450" y1="1062" x2="450" y2="1082" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="370" y="1084" width="160" height="30" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="450" y="1099" font-size="11" fill="#fff" text-anchor="middle" font-weight="600">25 Injection Output</text>
+<text x="450" y="1112" font-size="8" fill="#aac8e8" text-anchor="middle">(B, oup, H, W)</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- 4. Layer 26: RepBlock (repeat=2)                           -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- Layer badge -->
+<rect x="30" y="1136" width="56" height="22" rx="4" fill="#c07830" stroke="#e09848" stroke-width="1.2"/>
+<text x="58" y="1148" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">26</text>
+<text x="100" y="1150" font-size="14" fill="#e0a848" font-weight="700">RepBlock (repeat=2)</text>
+
+<!-- Input -->
+<line x1="450" y1="1114" x2="450" y2="1166" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- RepVGGBlock #1 -->
+<rect x="270" y="1168" width="360" height="40" rx="6" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1.5"/>
+<text x="450" y="1183" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">RepVGGBlock #1</text>
+<text x="450" y="1198" font-size="8" fill="#a0d8b0" text-anchor="middle">3&#xD7;3 Conv + 1&#xD7;1 Conv + identity &#x2192; sum &#x2192; SiLU</text>
+
+<line x1="450" y1="1208" x2="450" y2="1222" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+
+<!-- RepVGGBlock #2 -->
+<rect x="270" y="1224" width="360" height="40" rx="6" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1.5"/>
+<text x="450" y="1239" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">RepVGGBlock #2</text>
+<text x="450" y="1254" font-size="8" fill="#a0d8b0" text-anchor="middle">3&#xD7;3 Conv + 1&#xD7;1 Conv + identity &#x2192; sum &#x2192; SiLU</text>
+
+<!-- P2-LIR Output -->
+<line x1="450" y1="1264" x2="450" y2="1288" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="355" y="1290" width="190" height="36" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="2"/>
+<text x="450" y="1306" font-size="12" fill="#fff" text-anchor="middle" font-weight="700">26 P2-LIR Output</text>
+<text x="450" y="1322" font-size="8.5" fill="#aac8e8" text-anchor="middle">(B, C, H, W) &#x2192; Detection Head</text>
+
+</svg>
+
+<!-- Legend -->
+<div style="display:flex;gap:18px;justify-content:center;margin-top:8px;flex-wrap:wrap;">
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#3a6ea5;border:1px solid #5a9ed6;display:inline-block;"></span> Layer I/O
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#2a8a8a;border:1px solid #4ab8b8;display:inline-block;"></span> Conv Projection
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#7b5ea7;border:1px solid #9b7ec7;display:inline-block;"></span> Branch/Head
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#3a8a5a;border:1px solid #5ab87a;display:inline-block;"></span> Conv/ResBlock
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#c07830;border:1px solid #e09848;display:inline-block;"></span> Transform
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#c8a030;border:1px solid #e8c850;display:inline-block;"></span> Gate/Combine
+  </span>
+</div>
+<div style="text-align:center;margin-top:6px;color:#666;font-size:10px;">
+  P2-LIR pipeline: 21&#x2192;23 TopBasicLayer &#x2192; 24 LAF_h(23,21) &#x2192; 25 Injection(24,22) &#x2192; 26 RepBlock &#x2192; Head
+</div>
+</body>
+</html>

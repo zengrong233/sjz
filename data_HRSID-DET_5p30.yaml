@@ -1,0 +1,7 @@
+path: /share/home/u2415363072/5.30/ultralyticsPro--YOLO11/datasets/HRSID-DET
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 1
+names: ['ship']

@@ -1,0 +1,16 @@
+path: /share/home/u2415363072/5.13/ultralyticsPro--YOLO11/datasets/NWPU-VHR10-Original-Val86-ZIP
+train: images/train
+val: images/val
+test: images/test
+nc: 10
+names:
+- airplane
+- baseball diamond
+- basketball court
+- bridge
+- ground track field
+- harbor
+- ship
+- storage tank
+- tennis court
+- vehicle

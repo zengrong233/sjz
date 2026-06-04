@@ -32,13 +32,19 @@ class SSDSDetectionLoss(v8DetectionLoss):
             small_boost=cfg.get("small_boost", 1.3),
             mode=cfg.get("ssds_mode", "soft"),
             enabled=cfg.get("enable_ssds", True),
+            p3_fallback=cfg.get("ssds_p3_fallback", False),
+            p3_fallback_topk=cfg.get("ssds_p3_fallback_topk", 1),
+            p3_fallback_score=cfg.get("ssds_p3_fallback_score", 0.2),
+            p3_fallback_min_area=cfg.get("ssds_p3_fallback_min_area", 64.0),
+            p3_fallback_max_area=cfg.get("ssds_p3_fallback_max_area", 0.0),
         )
         LOGGER.info(
             f"{colorstr('SSDS Loss:')} tiny_thr={self.reweighter.tiny_area_thr} | "
             f"small_thr={self.reweighter.small_area_thr} | "
             f"tiny_boost={self.reweighter.tiny_boost} | "
             f"small_boost={self.reweighter.small_boost} | "
-            f"mode={self.reweighter.mode}"
+            f"mode={self.reweighter.mode} | "
+            f"p3_fallback={self.reweighter.p3_fallback}"
         )
 
     def __call__(self, preds, batch):
@@ -79,10 +85,14 @@ class SSDSDetectionLoss(v8DetectionLoss):
         )
 
         # ===== SSDS 重加权 =====
-        target_scores = self.reweighter.reweight(
+        target_scores, target_bboxes, fg_mask = self.reweighter.reweight(
             target_scores, target_bboxes, fg_mask,
             n_anchors_per_level=[f.shape[2] * f.shape[3] for f in feats],
             stride_per_anchor=stride_tensor,
+            anchor_points=anchor_points,
+            gt_labels=gt_labels,
+            gt_bboxes=gt_bboxes,
+            mask_gt=mask_gt,
         )
 
         target_scores_sum = max(target_scores.sum(), 1)

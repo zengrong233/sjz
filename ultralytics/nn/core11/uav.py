@@ -172,9 +172,7 @@ class ImprovedFFTKernel(nn.Module):
         out = self.in_conv(x)
 
         # fca 部分
-        # 频域计算改为 fp32，避免 AMP(fp16) + 非 2^n 尺寸触发 cuFFT 报错；
-        # 但 fac_conv/channel_attention 是普通 Conv，input 保持 out 原 dtype，
-        # 否则 val 阶段 (model.half()) 会触发 "Input float vs bias Half" 不匹配。
+        # 频域计算改为 fp32，避免 AMP(fp16) + 非 2^n 尺寸触发 cuFFT 报错
         out_f = out.float()
         x_att = self.fac_conv(self.fac_pool(out))
         x_fft = torch.fft.fft2(out_f, norm='backward')

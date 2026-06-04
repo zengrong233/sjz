@@ -41,6 +41,9 @@ __all__ = (
     "CBFuse",
     "CBLinear",
     "C3k2",
+    "C3k2Lite",
+    "LightSAConvLite",
+    "SSALite",
     "C2fPSA",
     "C2PSA",
     "RepVGGDW",
@@ -828,6 +831,145 @@ class C3k2(C2f):
         if self.ssa is None:
             return y_main
         return self.ssa(x, y_main)
+
+
+class LightSAConvLite(nn.Module):
+    """SSA-Lite 版 Switchable Atrous Convolution（与 LightSAConv 并存，不覆盖原类）。
+
+    相对 LightSAConv 的修复：
+    1. small / large 两条卷积由 ``3x3 Conv(c1→c2)`` 改为 ``DW3x3(c1→c1) + PW1x1(c1→c2)`` 深度可分离。
+       参数量/FLOPs 下降约 80-90%（尤其 c=1024 的 P5 级）。
+    2. ``pre_context / post_context`` 由 ``1x1 Conv(c→c)`` 改为 ``1x1 Conv(c→c/r) + SiLU + 1x1 Conv(c/r→c)``
+       的瓶颈结构，默认 r=4，减少固定开销。
+    3. switch gate 由 ``AvgPool5 → Conv2d(c1,1,1) → Sigmoid`` 单通道空间门控，改为 ``groups`` 组通道分组门控。
+       保留 ``AvgPool5`` 前置。输出 ``[B, groups, H, W]``，通过 ``repeat_interleave`` 广播到全通道。
+
+    与 LightSAConv 并存（不修改也不删除原类），供 ``SSALite`` 调用。
+    """
+
+    def __init__(self, c1, c2, k=3, s=1, dilation=3, act=True, groups=8, reduction=4):
+        super().__init__()
+        hidden_pre = max(c1 // reduction, 8)
+        self.pre_context = nn.Sequential(
+            nn.Conv2d(c1, hidden_pre, 1, bias=True),
+            nn.SiLU(inplace=True),
+            nn.Conv2d(hidden_pre, c1, 1, bias=True),
+        )
+
+        # group-wise switch: 确保 c2 % groups == 0，否则回退到 1（单通道共享）
+        self.switch_groups = max(1, min(groups, c2))
+        if c2 % self.switch_groups != 0:
+            self.switch_groups = 1
+        self.switch = nn.Sequential(
+            nn.AvgPool2d(kernel_size=5, stride=1, padding=2),
+            nn.Conv2d(c1, self.switch_groups, 1),
+            nn.Sigmoid(),
+        )
+
+        # DW + PW small branch (dilation=1)
+        self.small = nn.Sequential(
+            nn.Conv2d(c1, c1, k, s, autopad(k, None, 1), groups=c1, bias=False),
+            nn.BatchNorm2d(c1),
+            nn.SiLU(inplace=True),
+            nn.Conv2d(c1, c2, 1, 1, 0, bias=False),
+        )
+        # DW + PW large branch (dilation=dilation)
+        self.large = nn.Sequential(
+            nn.Conv2d(c1, c1, k, s, autopad(k, None, dilation), groups=c1, dilation=dilation, bias=False),
+            nn.BatchNorm2d(c1),
+            nn.SiLU(inplace=True),
+            nn.Conv2d(c1, c2, 1, 1, 0, bias=False),
+        )
+
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = Conv.default_act if act is True else act if isinstance(act, nn.Module) else nn.Identity()
+
+        hidden_post = max(c2 // reduction, 8)
+        self.post_context = nn.Sequential(
+            nn.Conv2d(c2, hidden_post, 1, bias=True),
+            nn.SiLU(inplace=True),
+            nn.Conv2d(hidden_post, c2, 1, bias=True),
+        )
+
+    def forward(self, x):
+        x = x + self.pre_context(F.adaptive_avg_pool2d(x, 1))
+        switch = self.switch(x)  # [B, G, H, W]
+        small_out = self.small(x)
+        large_out = self.large(x)
+        if self.switch_groups > 1:
+            per_group = small_out.shape[1] // self.switch_groups
+            switch = switch.repeat_interleave(per_group, dim=1)  # [B, C2, H, W]
+        y = switch * small_out + (1 - switch) * large_out
+        y = self.act(self.bn(y))
+        return y + self.post_context(F.adaptive_avg_pool2d(y, 1))
+
+
+class SSALite(nn.Module):
+    """SSA 的轻量修复版（与 SSA 并存，不覆盖原类）。
+
+    相对 SSA 的修复：
+    1. SAConv 分支替换为 ``LightSAConvLite``（可分离 + group-wise gate）。
+    2. Sobel 分支输出后加 ``sobel_alpha`` 可学习标量 gate（初值 ``1.0``，训练起点与 SSA 行为一致，
+       模型若发现边缘分支有害可自行衰减）。
+    3. ``fuse`` (1x1 Conv) 与原 SSA 保持一致，避免引入新结构差异。
+    """
+
+    def __init__(self, in_channels, out_channels, use_sobel=True, use_saconv=True, sac_dilate=3, switch_groups=8):
+        super().__init__()
+        self.use_sobel = use_sobel
+        self.use_saconv = use_saconv
+
+        self.sobel = SobelConvBranch(in_channels) if use_sobel else None
+        self.sobel_proj = Conv(in_channels, out_channels, 1, 1) if use_sobel else None
+        self.sobel_alpha = nn.Parameter(torch.ones(1)) if use_sobel else None
+
+        self.saconv = (
+            LightSAConvLite(in_channels, out_channels, 3, 1, dilation=sac_dilate, groups=switch_groups)
+            if use_saconv
+            else None
+        )
+
+        branch_count = 1 + int(use_sobel) + int(use_saconv)  # main + optional auxiliary branches
+        self.fuse = Conv(out_channels * branch_count, out_channels, 1, 1)
+
+    def forward(self, x, y_main):
+        ys = [y_main]
+        if self.use_sobel:
+            sobel_feat = self.sobel_proj(self.sobel(x))
+            ys.append(self.sobel_alpha * sobel_feat)
+        if self.use_saconv:
+            ys.append(self.saconv(x))
+        return self.fuse(torch.cat(ys, 1))
+
+
+class C3k2Lite(C3k2):
+    """SSA-Lite 版 C3k2（drop-in 替换 C3k2，位置参数完全一致）。
+
+    仅覆盖 ``self.ssa`` 为 ``SSALite``，其余（主支路 C2f、``m: ModuleList`` 等）从 ``C3k2`` 继承，
+    确保 E1 主线的 ``C3k2`` 类零修改。
+
+    YAML 用法与 ``C3k2`` 完全一致：
+        ``[-1, n, C3k2Lite, [c2, c3k, e, g, shortcut, ssa, use_sobel, use_saconv, sac_dilate]]``
+    """
+
+    def __init__(
+        self,
+        c1,
+        c2,
+        n=1,
+        c3k=False,
+        e=0.5,
+        g=1,
+        shortcut=True,
+        ssa=False,
+        use_sobel=True,
+        use_saconv=True,
+        sac_dilate=3,
+    ):
+        super().__init__(c1, c2, n, c3k, e, g, shortcut, ssa, use_sobel, use_saconv, sac_dilate)
+        if ssa:
+            # 用 SSALite 替换父类的 SSA；不改动父类 C3k2，保证 E1 路径安全
+            self.ssa = SSALite(c1, c2, use_sobel=use_sobel, use_saconv=use_saconv, sac_dilate=sac_dilate)
 
 
 class C3k(C3):

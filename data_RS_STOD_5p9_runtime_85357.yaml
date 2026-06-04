@@ -1,0 +1,6 @@
+path: /share/home/u2415363072/5.9/ultralyticsPro--YOLO11/datasets/RS-STOD
+train: images/train
+val: images/val
+test: images/test
+nc: 5
+names: ['Small Vehicle', 'Large Vehicle', 'Ship', 'Airplane', 'Storage Tank']

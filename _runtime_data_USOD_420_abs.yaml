@@ -1,0 +1,10 @@
+# USOD dataset config - absolute path runtime yaml for 4.20
+
+path: /share/home/u2415363072/4.20/ultralyticsPro--YOLO11/datasets/USOD
+train: images/train
+val: images/val
+test: images/test
+
+nc: 1
+names:
+  0: vehicle

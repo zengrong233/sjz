@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>2.1 RefocusSingle & 2.2 MFFF</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#1a1d23; font-family:'Segoe UI','Microsoft YaHei',sans-serif; padding:20px 24px; }
+  svg text { font-family:'Segoe UI','Microsoft YaHei',sans-serif; }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 1120 700" width="1120" height="700" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#ccc"/></marker>
+  <marker id="ad" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#7aafcf"/></marker>
+  <marker id="ag" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#6dbf6d"/></marker>
+  <filter id="glow"><feGaussianBlur stdDeviation="1.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+
+<!-- ════════════ 2.1 RefocusSingle (LEFT) ════════════ -->
+<text x="260" y="32" font-size="17" fill="#e0e0e0" text-anchor="middle" font-weight="700">2.1 RefocusSingle</text>
+
+<!-- Input -->
+<rect x="205" y="48" width="110" height="30" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="260" y="63" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="600">Input</text>
+<text x="260" y="74" font-size="8" fill="#aac8e8" text-anchor="middle">(B, C, H, W)</text>
+<line x1="260" y1="78" x2="260" y2="100" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- Split -->
+<circle cx="260" cy="108" r="4" fill="#ccc"/>
+<line x1="256" y1="108" x2="130" y2="108" stroke="#ccc" stroke-width="1.3"/>
+<line x1="130" y1="108" x2="130" y2="126" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+<line x1="264" y1="108" x2="390" y2="108" stroke="#ccc" stroke-width="1.3"/>
+<line x1="390" y1="108" x2="390" y2="126" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+
+<!-- ── Left branch: CandidateHeatmapHead ── -->
+<rect x="70" y="128" width="120" height="28" rx="6" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1.5"/>
+<text x="130" y="142" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">HeatmapHead</text>
+<text x="130" y="153" font-size="7.5" fill="#c8b0e0" text-anchor="middle">CandidateResMap</text>
+
+<line x1="130" y1="156" x2="130" y2="172" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- DWConv3x3 + BN + SiLU -->
+<rect x="60" y="174" width="140" height="26" rx="5" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1.3"/>
+<text x="130" y="187" font-size="9.5" fill="#fff" text-anchor="middle" font-weight="600">DWConv 3×3 + BN + SiLU</text>
+<text x="130" y="197" font-size="7.5" fill="#a0d8b0" text-anchor="middle">groups=C</text>
+<line x1="130" y1="200" x2="130" y2="214" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- PWConv1x1 + BN + SiLU -->
+<rect x="60" y="216" width="140" height="26" rx="5" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1.3"/>
+<text x="130" y="229" font-size="9.5" fill="#fff" text-anchor="middle" font-weight="600">PWConv 1×1 + BN + SiLU</text>
+<text x="130" y="239" font-size="7.5" fill="#a0d8b0" text-anchor="middle">→ C/4</text>
+<line x1="130" y1="242" x2="130" y2="256" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- Conv1x1 + Sigmoid -->
+<rect x="70" y="258" width="120" height="26" rx="5" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1.3"/>
+<text x="130" y="271" font-size="9.5" fill="#fff" text-anchor="middle" font-weight="600">Conv 1×1 → Sigmoid</text>
+<line x1="130" y1="284" x2="130" y2="300" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- heatmap output -->
+<rect x="85" y="302" width="90" height="24" rx="5" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.3"/>
+<text x="130" y="314" font-size="9.5" fill="#fff" text-anchor="middle" font-weight="600">heatmap</text>
+<text x="130" y="324" font-size="7.5" fill="#aac8e8" text-anchor="middle">(B, 1, H, W)</text>
+
+<!-- heatmap → weighted fusion -->
+<path d="M 130,326 L 130,360 L 220,360" stroke="#7aafcf" stroke-width="1.3" fill="none" marker-end="url(#ad)"/>
+
+<!-- ── Right branch: x pass-through ── -->
+<rect x="340" y="128" width="100" height="28" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="390" y="140" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">x</text>
+<text x="390" y="152" font-size="8" fill="#aac8e8" text-anchor="middle">pass-through</text>
+
+<!-- x → skip to final addition -->
+<path d="M 390,156 L 390,470 L 310,470" stroke="#6dbf6d" stroke-width="1.5" stroke-dasharray="6,3" fill="none" marker-end="url(#ag)"/>
+<text x="404" y="320" font-size="8" fill="#6dbf6d" text-anchor="start" transform="rotate(90,404,320)">skip (x)</text>
+
+<!-- x → weighted fusion -->
+<line x1="390" y1="156" x2="390" y2="340" stroke="#ccc" stroke-width="1.3"/>
+<path d="M 390,340 L 290,340 L 260,360" stroke="#ccc" stroke-width="1.3" fill="none" marker-end="url(#a)"/>
+
+<!-- ── Weighted fusion: x × heatmap ── -->
+<rect x="222" y="348" width="92" height="28" rx="6" fill="#c8a030" stroke="#e8c850" stroke-width="1.5"/>
+<text x="268" y="362" font-size="9.5" fill="#fff" text-anchor="middle" font-weight="600">x × heatmap</text>
+<text x="268" y="373" font-size="7.5" fill="#e8d890" text-anchor="middle">= weighted</text>
+<line x1="268" y1="376" x2="268" y2="394" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- enhance path -->
+<rect x="198" y="396" width="140" height="26" rx="5" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1.3"/>
+<text x="268" y="409" font-size="9.5" fill="#fff" text-anchor="middle" font-weight="600">DWConv 3×3+BN+SiLU</text>
+<line x1="268" y1="422" x2="268" y2="436" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<rect x="198" y="438" width="140" height="26" rx="5" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1.3"/>
+<text x="268" y="451" font-size="9.5" fill="#fff" text-anchor="middle" font-weight="600">PWConv 1×1+BN+SiLU</text>
+<line x1="268" y1="464" x2="268" y2="478" stroke="#ccc" stroke-width="1.2"/>
+
+<!-- γ × enhanced -->
+<text x="268" y="480" font-size="9" fill="#e8c850" text-anchor="middle" font-weight="600">γ × enhanced</text>
+
+<!-- ── ⊕ Addition: x + γ·enhanced ── -->
+<circle cx="268" cy="500" r="14" fill="#2a2d33" stroke="#e8c850" stroke-width="2"/>
+<text x="268" y="501" font-size="14" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">⊕</text>
+
+<line x1="282" y1="500" x2="310" y2="500" stroke="#ccc" stroke-width="1.3"/>
+
+<!-- skip(x) arrives here -->
+<circle cx="268" cy="500" r="14" fill="none" stroke="#e8c850" stroke-width="2"/>
+
+<!-- residual label -->
+<text x="268" y="530" font-size="9" fill="#e0e0e0" text-anchor="middle" font-weight="600">Output = x + γ · enhanced</text>
+
+<!-- Final output -->
+<line x1="268" y1="538" x2="268" y2="558" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="210" y="560" width="116" height="30" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="268" y="575" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="600">Output</text>
+<text x="268" y="587" font-size="8" fill="#aac8e8" text-anchor="middle">(B, C, H, W)</text>
+
+<!-- ── GridSampleRefiner alternative (bottom annotation) ── -->
+<rect x="18" y="618" width="490" height="68" rx="8" fill="#2a2d33" stroke="#444" stroke-width="1"/>
+<text x="30" y="636" font-size="9.5" fill="#c8a030" font-weight="600">GridSampleRefiner (mode=gridsample 替代方案):</text>
+<text x="30" y="650" font-size="8.5" fill="#aaa">cat[x, heatmap] → Conv3×3+BN+SiLU → Conv1×1 → offset (B,2,H,W)</text>
+<text x="30" y="663" font-size="8.5" fill="#aaa">base_grid + offset×0.1×heatmap → clamp(-1,1) → grid_sample(x) → resampled</text>
+<text x="30" y="676" font-size="8.5" fill="#aaa">resampled → Conv1×1+BN+SiLU → enhanced     Output = x + γ·enhanced</text>
+
+
+<!-- ════════════ 2.2 MFFF (RIGHT) ════════════ -->
+<text x="810" y="32" font-size="17" fill="#e0e0e0" text-anchor="middle" font-weight="700">2.2 MFFF (Multi-Frequency Feature Fusion)</text>
+
+<!-- Input -->
+<rect x="755" y="48" width="110" height="30" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="810" y="63" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="600">Input</text>
+<text x="810" y="74" font-size="8" fill="#aac8e8" text-anchor="middle">(B, C, H, W)</text>
+<line x1="810" y1="78" x2="810" y2="104" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- cv1 -->
+<rect x="752" y="106" width="116" height="32" rx="6" fill="#2a8a8a" stroke="#4ab8b8" stroke-width="1.5"/>
+<text x="810" y="120" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="600">cv1 (Conv 1×1)</text>
+<text x="810" y="133" font-size="8" fill="#a0e0e0" text-anchor="middle">channel projection</text>
+<line x1="810" y1="138" x2="810" y2="164" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- Split label -->
+<text x="810" y="176" font-size="9" fill="#aaa" text-anchor="middle" font-weight="600">Split by channel ratio r = 0.25</text>
+
+<!-- Split point -->
+<circle cx="810" cy="188" r="4" fill="#ccc"/>
+<line x1="806" y1="188" x2="680" y2="188" stroke="#ccc" stroke-width="1.3"/>
+<line x1="680" y1="188" x2="680" y2="210" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+<line x1="814" y1="188" x2="950" y2="188" stroke="#ccc" stroke-width="1.3"/>
+<line x1="950" y1="188" x2="950" y2="210" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+
+<!-- ── Left: ok_branch 25% ── -->
+<rect x="620" y="212" width="120" height="28" rx="6" fill="#c07830" stroke="#e09848" stroke-width="1.5"/>
+<text x="680" y="226" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">ok_branch</text>
+<text x="680" y="237" font-size="8.5" fill="#f0d0a0" text-anchor="middle">[25% channels]</text>
+<line x1="680" y1="240" x2="680" y2="264" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+
+<!-- ImprovedFFTKernel large box -->
+<rect x="570" y="266" width="220" height="270" rx="8" fill="#2a2520" stroke="#c07830" stroke-width="1.8" stroke-dasharray="6,3"/>
+<text x="680" y="286" font-size="12" fill="#e0a848" text-anchor="middle" font-weight="700">ImprovedFFTKernel</text>
+
+<!-- in_conv -->
+<rect x="608" y="296" width="144" height="24" rx="5" fill="#c07830" stroke="#e09848" stroke-width="1.3"/>
+<text x="680" y="308" font-size="9.5" fill="#fff" text-anchor="middle" font-weight="600">Conv 1×1 + GELU → out</text>
+<line x1="680" y1="320" x2="680" y2="336" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- FCA split point -->
+<circle cx="680" cy="342" r="3.5" fill="#ccc"/>
+<text x="695" y="338" font-size="7.5" fill="#888">out</text>
+
+<!-- FCA Path A: FFT2D -->
+<line x1="676" y1="342" x2="610" y2="342" stroke="#ccc" stroke-width="1.1"/>
+<line x1="610" y1="342" x2="610" y2="356" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+<rect x="582" y="358" width="56" height="22" rx="4" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1.2"/>
+<text x="610" y="369" font-size="8.5" fill="#fff" text-anchor="middle" font-weight="600">FFT2D</text>
+<line x1="610" y1="380" x2="610" y2="394" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- FCA Path B: GAP + Conv1x1 → x_att -->
+<line x1="684" y1="342" x2="748" y2="342" stroke="#ccc" stroke-width="1.1"/>
+<line x1="748" y1="342" x2="748" y2="356" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+<rect x="718" y="358" width="60" height="22" rx="4" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1.2"/>
+<text x="748" y="365" font-size="8" fill="#fff" text-anchor="middle" font-weight="600">GAP</text>
+<text x="748" y="376" font-size="7.5" fill="#c8b0e0" text-anchor="middle">+Conv1×1</text>
+<line x1="748" y1="380" x2="748" y2="394" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- x_att label -->
+<text x="755" y="390" font-size="7.5" fill="#c8a030" font-weight="600">x_att</text>
+
+<!-- × multiply: x_att × FFT2D(out) -->
+<circle cx="680" cy="402" r="10" fill="#2a2d33" stroke="#e8c850" stroke-width="1.8"/>
+<text x="680" y="403" font-size="11" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">×</text>
+<line x1="610" y1="394" x2="670" y2="400" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+<line x1="748" y1="394" x2="690" y2="400" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+<line x1="680" y1="412" x2="680" y2="424" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- iFFT2D + |abs| → x_fca -->
+<rect x="645" y="426" width="70" height="22" rx="4" fill="#555" stroke="#888" stroke-width="1.2"/>
+<text x="680" y="433" font-size="8" fill="#fff" text-anchor="middle" font-weight="600">iFFT2D</text>
+<text x="680" y="444" font-size="7.5" fill="#ccc" text-anchor="middle">|abs| → x_fca</text>
+<line x1="680" y1="448" x2="680" y2="460" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- SCA: Conv 1+3+5 -->
+<rect x="632" y="462" width="96" height="22" rx="4" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1.2"/>
+<text x="680" y="469" font-size="8" fill="#fff" text-anchor="middle" font-weight="600">Conv 1+3+5</text>
+<text x="680" y="480" font-size="7.5" fill="#a0d8b0" text-anchor="middle">→ x_sca</text>
+<line x1="680" y1="484" x2="680" y2="496" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- Channel Attn from x_att -->
+<path d="M 755,390 L 768,390 L 768,475 L 738,475" stroke="#c8a030" stroke-width="1.1" stroke-dasharray="3,2" fill="none" marker-end="url(#a)"/>
+<rect x="692" y="462" width="44" height="22" rx="4" fill="#c8a030" stroke="#e8c850" stroke-width="1.2"/>
+<text x="714" y="473" font-size="7.5" fill="#fff" text-anchor="middle" font-weight="600">ChAttn</text>
+<!-- × channel weights -->
+<circle cx="680" cy="500" r="8" fill="#2a2d33" stroke="#e8c850" stroke-width="1.5"/>
+<text x="680" y="501" font-size="9" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">×</text>
+<line x1="692" y1="474" x2="686" y2="494" stroke="#c8a030" stroke-width="1" marker-end="url(#a)"/>
+<line x1="680" y1="508" x2="680" y2="518" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- FFM -->
+<rect x="650" y="520" width="60" height="22" rx="4" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1.2"/>
+<text x="680" y="531" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">FFM</text>
+<line x1="680" y1="542" x2="680" y2="554" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- 4-term sum: x + DW31 + DW1 + FFM -->
+<!-- DW31 path from out -->
+<path d="M 680,342 L 592,342 L 592,555" stroke="#c07830" stroke-width="1" stroke-dasharray="3,2" fill="none"/>
+<rect x="580" y="496" width="52" height="18" rx="3" fill="#c07830" stroke="#e09848" stroke-width="1"/>
+<text x="606" y="505" font-size="7" fill="#fff" text-anchor="middle" font-weight="600">DW 31×31</text>
+<text x="606" y="512" font-size="6.5" fill="#f0d0a0" text-anchor="middle">on out</text>
+<line x1="606" y1="514" x2="606" y2="555" stroke="#c07830" stroke-width="1" marker-end="url(#a)"/>
+
+<!-- DW1 path from out -->
+<path d="M 680,342 L 770,342 L 770,500" stroke="#c07830" stroke-width="1" stroke-dasharray="3,2" fill="none"/>
+<rect x="746" y="496" width="48" height="18" rx="3" fill="#c07830" stroke="#e09848" stroke-width="1"/>
+<text x="770" y="505" font-size="7" fill="#fff" text-anchor="middle" font-weight="600">DW 1×1</text>
+<text x="770" y="512" font-size="6.5" fill="#f0d0a0" text-anchor="middle">on out</text>
+<line x1="770" y1="514" x2="770" y2="555" stroke="#c07830" stroke-width="1" marker-end="url(#a)"/>
+
+<!-- x skip -->
+<path d="M 580,296 L 580,272 L 790,272 L 790,555" stroke="#6dbf6d" stroke-width="1.3" stroke-dasharray="5,3" fill="none"/>
+<text x="690" y="268" font-size="7.5" fill="#6dbf6d" text-anchor="middle">x skip</text>
+
+<!-- Σ₄ -->
+<circle cx="680" cy="564" r="13" fill="#2a2d33" stroke="#e8c850" stroke-width="2"/>
+<text x="680" y="560" font-size="11" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">Σ</text>
+<text x="680" y="572" font-size="7" fill="#e8c850" text-anchor="middle" font-weight="600">4</text>
+
+<text x="680" y="590" font-size="7.5" fill="#aaa" text-anchor="middle">x + DW31(out) + DW1(out) + FFM(x_sca)</text>
+
+<line x1="680" y1="596" x2="680" y2="608" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- ReLU + Conv1x1 -->
+<rect x="636" y="610" width="88" height="22" rx="4" fill="#555" stroke="#888" stroke-width="1.2"/>
+<text x="680" y="621" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">ReLU → Conv1×1</text>
+
+<!-- FFT kernel output -->
+<line x1="680" y1="632" x2="680" y2="650" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+<text x="680" y="660" font-size="8" fill="#e0a848" text-anchor="middle" font-weight="600">FFT_out</text>
+
+<!-- ── Right: identity 75% ── -->
+<rect x="890" y="212" width="120" height="28" rx="6" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1.5"/>
+<text x="950" y="226" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">identity</text>
+<text x="950" y="237" font-size="8.5" fill="#a0d8b0" text-anchor="middle">[75% channels]</text>
+<line x1="950" y1="240" x2="950" y2="640" stroke="#6dbf6d" stroke-width="1.5" stroke-dasharray="6,3"/>
+<text x="968" y="440" font-size="8.5" fill="#6dbf6d" text-anchor="start" transform="rotate(90,968,440)">pass-through</text>
+
+<!-- Cat -->
+<rect x="740" y="666" width="70" height="26" rx="5" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="775" y="679" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">Cat</text>
+<text x="775" y="690" font-size="7.5" fill="#aac8e8" text-anchor="middle">dim=1</text>
+
+<!-- FFT_out → Cat -->
+<line x1="680" y1="660" x2="680" y2="679" stroke="#ccc" stroke-width="1.2"/>
+<line x1="680" y1="679" x2="740" y2="679" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+<!-- identity → Cat -->
+<line x1="950" y1="640" x2="950" y2="679" stroke="#6dbf6d" stroke-width="1.2"/>
+<line x1="950" y1="679" x2="810" y2="679" stroke="#6dbf6d" stroke-width="1.2" marker-end="url(#ag)"/>
+
+<!-- cv2 -->
+<line x1="810" y1="679" x2="860" y2="679" stroke="#ccc" stroke-width="1.5"/>
+<rect x="862" y="666" width="116" height="26" rx="6" fill="#2a8a8a" stroke="#4ab8b8" stroke-width="1.5"/>
+<text x="920" y="679" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="600">cv2 (Conv 1×1)</text>
+
+<!-- Output -->
+<line x1="978" y1="679" x2="1010" y2="679" stroke="#ccc" stroke-width="1.8" marker-end="url(#a)"/>
+<rect x="1012" y="666" width="90" height="26" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="1057" y="679" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">Output</text>
+<text x="1057" y="690" font-size="7.5" fill="#aac8e8" text-anchor="middle">(B, C, H, W)</text>
+
+
+<!-- ════════════ Legend ════════════ -->
+<rect x="18" y="696" width="1084" height="2" rx="1" fill="#333"/>
+
+</svg>
+<!-- Color legend rendered below SVG -->
+<div style="display:flex;gap:24px;justify-content:center;margin-top:10px;flex-wrap:wrap;">
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:12px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#3a6ea5;border:1px solid #5a9ed6;display:inline-block;"></span> Input / Output
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:12px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#2a8a8a;border:1px solid #4ab8b8;display:inline-block;"></span> Conv Projection
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:12px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#7b5ea7;border:1px solid #9b7ec7;display:inline-block;"></span> Branch / Head
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:12px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#3a8a5a;border:1px solid #5ab87a;display:inline-block;"></span> Res-Through
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:12px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#c07830;border:1px solid #e09848;display:inline-block;"></span> Feature Transform
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:12px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#c8a030;border:1px solid #e8c850;display:inline-block;"></span> Energy Combine
+  </span>
+</div>
+</body>
+</html>

@@ -5,6 +5,7 @@
 *.ckpt
 weights/
 **/weights/
+best_pt/
 
 # Ignore datasets (do not upload datasets)
 /datasets/
@@ -77,5 +78,13 @@ Thumbs.db
 *.bin
 *.tar
 *.zip
+*.rar
+*.7z
+*.pdf
+
+# Local backup/copy artifacts
+*.bak
+*.bak_*
+Copy_*
 
 # End of .gitignore

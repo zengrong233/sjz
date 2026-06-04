@@ -605,11 +605,11 @@ class LAF_h(nn.Module):
         return torch.cat([x1, x2], 1)
     
 class TopBasicLayer(nn.Module):
-    def __init__(self, input, embedding_dim, mlp_ratio=4., attn_ratio=2., drop=0., drop_path=0.):
+    def __init__(self, input, embedding_dim, depths=2, mlp_ratio=4., attn_ratio=2., drop=0., drop_path=0.):
         super().__init__()
         # 使用 input（实际输入通道数）作为内部维度，确保在不同 scale 下通道一致
         dim = input
-        depths = 2
+        depths = int(depths)
         key_dim = max(dim // 4, 4)  # 动态计算 key_dim，确保不为 0
         num_heads = max(dim // key_dim, 1)  # 动态计算 num_heads
         self.block_num = depths

@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>LIR - Lightweight Injection Refinement</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#1a1d23; font-family:'Segoe UI','Microsoft YaHei',sans-serif; padding:16px 20px; }
+  svg text { font-family:'Segoe UI','Microsoft YaHei',sans-serif; }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 1200 1020" width="1200" height="1020" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#ccc"/></marker>
+  <marker id="ad" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#7aafcf"/></marker>
+  <marker id="ag" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#6dbf6d"/></marker>
+  <marker id="ao" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#c07830"/></marker>
+  <marker id="ay" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#c8a030"/></marker>
+</defs>
+
+<!-- ════════ Title ════════ -->
+<text x="600" y="28" font-size="18" fill="#e0e0e0" text-anchor="middle" font-weight="700">LIR (Lightweight Injection Refinement)</text>
+<text x="600" y="46" font-size="10" fill="#888" text-anchor="middle">TopBasicLayer &#x2192; LAF_h &#x2192; Injection &#x2192; RepBlock</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- 1. TopBasicLayer (LEFT TOP)                                -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<text x="300" y="74" font-size="15" fill="#e0e0e0" text-anchor="middle" font-weight="700">1. TopBasicLayer</text>
+<text x="300" y="90" font-size="9" fill="#888" text-anchor="middle">Transformer Attention with Spatial Reduction &#xD7; depths + Conv1&#xD7;1</text>
+
+<!-- Input -->
+<rect x="245" y="100" width="110" height="30" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="300" y="115" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="600">Input</text>
+<text x="300" y="127" font-size="8" fill="#aac8e8" text-anchor="middle">(B, C, H, W)</text>
+<line x1="300" y1="130" x2="300" y2="150" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- TopBasicLayer large box -->
+<rect x="30" y="152" width="540" height="380" rx="8" fill="#2a2520" stroke="#c07830" stroke-width="1.8" stroke-dasharray="6,3"/>
+<text x="300" y="172" font-size="12" fill="#e0a848" text-anchor="middle" font-weight="700">TopBasicLayer (depths &#xD7; top_Block + Conv1&#xD7;1)</text>
+
+<!-- ── top_Block dashed sub-box ── -->
+<rect x="50" y="184" width="500" height="296" rx="6" fill="#1e2028" stroke="#888" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="300" y="200" font-size="10" fill="#ccc" text-anchor="middle" font-weight="600">top_Block &#xD7; depths</text>
+
+<!-- x input to top_Block -->
+<line x1="300" y1="152" x2="300" y2="216" stroke="#ccc" stroke-width="1.2"/>
+<circle cx="300" cy="222" r="4" fill="#ccc"/>
+
+<!-- Split into Attention (left) and MLP (right) -->
+<line x1="296" y1="222" x2="175" y2="222" stroke="#ccc" stroke-width="1.2"/>
+<line x1="175" y1="222" x2="175" y2="238" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+<line x1="304" y1="222" x2="425" y2="222" stroke="#ccc" stroke-width="1.2"/>
+<line x1="425" y1="222" x2="425" y2="238" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  Attention (LEFT branch)                     ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<rect x="62" y="240" width="226" height="190" rx="5" fill="#2a2030" stroke="#7b5ea7" stroke-width="1.3" stroke-dasharray="4,2"/>
+<text x="175" y="254" font-size="9" fill="#c8b0e0" text-anchor="middle" font-weight="600">Attention</text>
+
+<!-- to_q, to_k, to_v -->
+<rect x="74" y="262" width="60" height="16" rx="3" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1"/>
+<text x="104" y="272" font-size="6.5" fill="#fff" text-anchor="middle" font-weight="600">to_q (1&#xD7;1)</text>
+<rect x="144" y="262" width="60" height="16" rx="3" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1"/>
+<text x="174" y="272" font-size="6.5" fill="#fff" text-anchor="middle" font-weight="600">to_k (1&#xD7;1)</text>
+<rect x="214" y="262" width="60" height="16" rx="3" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1"/>
+<text x="244" y="272" font-size="6.5" fill="#fff" text-anchor="middle" font-weight="600">to_v (1&#xD7;1)</text>
+
+<!-- SR Pool condition -->
+<rect x="90" y="286" width="170" height="22" rx="4" fill="#c07830" stroke="#e09848" stroke-width="1.2"/>
+<text x="175" y="296" font-size="7" fill="#fff" text-anchor="middle" font-weight="600">SR Pool: if H&#xD7;W &gt; 4096, AvgPool(stride=4)</text>
+<text x="175" y="306" font-size="6" fill="#f0d0a0" text-anchor="middle">K/V downsampled, Q stays full resolution</text>
+
+<!-- Reshape -->
+<text x="175" y="320" font-size="6.5" fill="#aaa" text-anchor="middle">Reshape: Q(B,h,N,kd) K(B,h,kd,Nk) V(B,h,Nk,d)</text>
+
+<!-- matmul QK -->
+<rect x="110" y="328" width="130" height="16" rx="3" fill="#c8a030" stroke="#e8c850" stroke-width="1.1"/>
+<text x="175" y="338" font-size="7" fill="#fff" text-anchor="middle" font-weight="600">matmul(Q, K) &#x2192; softmax</text>
+
+<!-- matmul attn,V -->
+<rect x="110" y="350" width="130" height="16" rx="3" fill="#c8a030" stroke="#e8c850" stroke-width="1.1"/>
+<text x="175" y="360" font-size="7" fill="#fff" text-anchor="middle" font-weight="600">matmul(attn, V)</text>
+
+<!-- Reshape + Proj -->
+<text x="175" y="378" font-size="6.5" fill="#aaa" text-anchor="middle">Reshape(B,dh,H,W)</text>
+<rect x="110" y="384" width="130" height="16" rx="3" fill="#555" stroke="#888" stroke-width="1"/>
+<text x="175" y="394" font-size="7" fill="#fff" text-anchor="middle" font-weight="600">Proj: ReLU6 &#x2192; Conv1&#xD7;1</text>
+
+<!-- scale bug annotation -->
+<rect x="62" y="406" width="226" height="16" rx="3" fill="#4a2020" stroke="#c04040" stroke-width="0.8"/>
+<text x="175" y="416" font-size="6" fill="#ff8080" text-anchor="middle">&#x26A0; scale=kd^(-0.5) defined but NOT applied at line 714</text>
+
+<!-- DropPath from Attention -->
+<line x1="175" y1="430" x2="175" y2="440" stroke="#ccc" stroke-width="1"/>
+<text x="175" y="450" font-size="7" fill="#aaa" text-anchor="middle">DropPath</text>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  MLP (RIGHT branch)                          ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<rect x="312" y="240" width="226" height="130" rx="5" fill="#203020" stroke="#3a8a5a" stroke-width="1.3" stroke-dasharray="4,2"/>
+<text x="425" y="254" font-size="9" fill="#a0d8b0" text-anchor="middle" font-weight="600">Mlp</text>
+
+<!-- fc1 -->
+<rect x="360" y="264" width="130" height="16" rx="3" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1"/>
+<text x="425" y="274" font-size="7" fill="#fff" text-anchor="middle" font-weight="600">fc1: Conv1&#xD7;1 (C &#x2192; C&#xD7;mlp_ratio)</text>
+
+<!-- DWConv -->
+<rect x="360" y="286" width="130" height="16" rx="3" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1"/>
+<text x="425" y="296" font-size="7" fill="#fff" text-anchor="middle" font-weight="600">DWConv 3&#xD7;3 (groups=C&#xD7;mlp_ratio)</text>
+
+<!-- ReLU6 + Dropout -->
+<rect x="360" y="308" width="130" height="16" rx="3" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1"/>
+<text x="425" y="318" font-size="7" fill="#fff" text-anchor="middle" font-weight="600">ReLU6 &#x2192; Dropout</text>
+
+<!-- fc2 -->
+<rect x="360" y="330" width="130" height="16" rx="3" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1"/>
+<text x="425" y="340" font-size="7" fill="#fff" text-anchor="middle" font-weight="600">fc2: Conv1&#xD7;1 (C&#xD7;mlp_ratio &#x2192; C)</text>
+
+<!-- DropPath from MLP -->
+<line x1="425" y1="370" x2="425" y2="440" stroke="#ccc" stroke-width="1"/>
+<text x="425" y="450" font-size="7" fill="#aaa" text-anchor="middle">DropPath</text>
+
+<!-- ── Residual additions ── -->
+<!-- x + DropPath(attn) -->
+<circle cx="175" cy="460" r="10" fill="#2a2d33" stroke="#e8c850" stroke-width="1.5"/>
+<text x="175" y="461" font-size="10" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">&#x2295;</text>
+<!-- x skip to attn residual -->
+<path d="M 300,222 L 60,222 L 60,460 L 165,460" stroke="#6dbf6d" stroke-width="1.2" stroke-dasharray="5,3" fill="none" marker-end="url(#ag)"/>
+<text x="54" y="340" font-size="7" fill="#6dbf6d" text-anchor="start" transform="rotate(-90,54,340)">x skip</text>
+
+<!-- x1 + DropPath(mlp) -->
+<circle cx="425" cy="460" r="10" fill="#2a2d33" stroke="#e8c850" stroke-width="1.5"/>
+<text x="425" y="461" font-size="10" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">&#x2295;</text>
+<!-- x1 (output of attn residual) → mlp residual -->
+<path d="M 185,460 L 415,460" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+<text x="300" y="456" font-size="6.5" fill="#aaa" text-anchor="middle">x1 = x + DropPath(attn(x))</text>
+
+<!-- x1 skip to mlp residual -->
+<path d="M 300,222 L 540,222 L 540,460 L 435,460" stroke="#6dbf6d" stroke-width="1.2" stroke-dasharray="5,3" fill="none" marker-end="url(#ag)"/>
+<text x="546" y="340" font-size="7" fill="#6dbf6d" text-anchor="start" transform="rotate(90,546,340)">x1 skip</text>
+
+<!-- Output formula -->
+<text x="300" y="478" font-size="7.5" fill="#e0e0e0" text-anchor="middle" font-weight="600">x2 = x1 + DropPath(mlp(x1))</text>
+
+<!-- ── Conv 1x1 ── -->
+<line x1="300" y1="482" x2="300" y2="498" stroke="#ccc" stroke-width="1.3" marker-end="url(#a)"/>
+<rect x="232" y="500" width="136" height="22" rx="5" fill="#2a8a8a" stroke="#4ab8b8" stroke-width="1.3"/>
+<text x="300" y="511" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">conv_1x1_n (Conv 1&#xD7;1)</text>
+
+<!-- TopBasicLayer Output -->
+<line x1="300" y1="522" x2="300" y2="545" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="235" y="547" width="130" height="30" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="300" y="562" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="600">TopBasic Output</text>
+<text x="300" y="574" font-size="8" fill="#aac8e8" text-anchor="middle">(B, C, H, W)</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- 2. LAF_h (CENTER)                                          -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- Two inputs: TopBasic output (x1) + another feature (x2) -->
+<line x1="300" y1="577" x2="300" y2="600" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- LAF_h label -->
+<text x="300" y="618" font-size="15" fill="#e0e0e0" text-anchor="middle" font-weight="700">2. LAF_h</text>
+<text x="300" y="634" font-size="9" fill="#888" text-anchor="middle">Local-Global Adaptive Fusion by Height</text>
+
+<!-- Two inputs -->
+<rect x="140" y="644" width="100" height="26" rx="5" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.3"/>
+<text x="190" y="657" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">x1 (upper)</text>
+<text x="190" y="668" font-size="7" fill="#aac8e8" text-anchor="middle">higher resolution</text>
+
+<rect x="360" y="644" width="100" height="26" rx="5" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.3"/>
+<text x="410" y="657" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">x2 (lower)</text>
+<text x="410" y="668" font-size="7" fill="#aac8e8" text-anchor="middle">lower resolution</text>
+
+<!-- x1 → pool to x2 size -->
+<line x1="190" y1="670" x2="190" y2="690" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+<rect x="120" y="692" width="140" height="22" rx="4" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1.3"/>
+<text x="190" y="703" font-size="8.5" fill="#fff" text-anchor="middle" font-weight="600">AdaptiveAvgPool2d</text>
+<text x="190" y="712" font-size="7" fill="#a0d8b0" text-anchor="middle">pool x1 to x2 size (H2, W2)</text>
+
+<!-- x2 pass-through -->
+<line x1="410" y1="670" x2="410" y2="690" stroke="#6dbf6d" stroke-width="1.2" stroke-dasharray="5,3"/>
+
+<!-- Cat -->
+<line x1="190" y1="714" x2="190" y2="730" stroke="#ccc" stroke-width="1.2"/>
+<line x1="410" y1="690" x2="410" y2="730" stroke="#6dbf6d" stroke-width="1.2" stroke-dasharray="5,3"/>
+<rect x="240" y="730" width="120" height="26" rx="5" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="300" y="743" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">Cat (dim=1)</text>
+<text x="300" y="754" font-size="7.5" fill="#aac8e8" text-anchor="middle">[pooled_x1, x2]</text>
+
+<!-- LAF_h Output -->
+<line x1="300" y1="756" x2="300" y2="776" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="235" y="778" width="130" height="28" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="300" y="792" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">LAF_h Output</text>
+<text x="300" y="803" font-size="7.5" fill="#aac8e8" text-anchor="middle">(B, C1+C2, H2, W2)</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- 3. Injection (RIGHT TOP)                                   -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<text x="900" y="74" font-size="15" fill="#e0e0e0" text-anchor="middle" font-weight="700">3. Injection</text>
+<text x="900" y="90" font-size="9" fill="#888" text-anchor="middle">InjectionMultiSum_Auto_pool (local-global feature injection)</text>
+
+<!-- Input [x_l, x_g] -->
+<rect x="830" y="100" width="140" height="30" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="900" y="115" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">[x_l, x_g]</text>
+<text x="900" y="127" font-size="7.5" fill="#aac8e8" text-anchor="middle">local + global features</text>
+<line x1="900" y1="130" x2="900" y2="152" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- Split -->
+<circle cx="900" cy="158" r="4" fill="#ccc"/>
+<line x1="896" y1="158" x2="770" y2="158" stroke="#ccc" stroke-width="1.2"/>
+<line x1="770" y1="158" x2="770" y2="176" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+<line x1="904" y1="158" x2="1030" y2="158" stroke="#ccc" stroke-width="1.2"/>
+<line x1="1030" y1="158" x2="1030" y2="176" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- ── LEFT: x_l (local) ── -->
+<rect x="710" y="178" width="120" height="24" rx="5" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.3"/>
+<text x="770" y="190" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">x_l (local)</text>
+<text x="770" y="200" font-size="7" fill="#aac8e8" text-anchor="middle">(B, C_l, H_l, W_l)</text>
+<line x1="770" y1="202" x2="770" y2="218" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- local_embedding -->
+<rect x="700" y="220" width="140" height="22" rx="4" fill="#2a8a8a" stroke="#4ab8b8" stroke-width="1.2"/>
+<text x="770" y="231" font-size="8.5" fill="#fff" text-anchor="middle" font-weight="600">local_embedding: Conv1&#xD7;1</text>
+<text x="770" y="240" font-size="6.5" fill="#a0e0e0" text-anchor="middle">C_l &#x2192; oup, no act</text>
+<line x1="770" y1="242" x2="770" y2="258" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+<rect x="720" y="260" width="100" height="20" rx="4" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.2"/>
+<text x="770" y="270" font-size="8" fill="#fff" text-anchor="middle" font-weight="600">local_feat</text>
+<text x="770" y="278" font-size="6.5" fill="#aac8e8" text-anchor="middle">(B, oup, H_l, W_l)</text>
+
+<!-- ── RIGHT: x_g (global) ── -->
+<rect x="970" y="178" width="120" height="24" rx="5" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.3"/>
+<text x="1030" y="190" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">x_g (global)</text>
+<text x="1030" y="200" font-size="7" fill="#aac8e8" text-anchor="middle">(B, C_g, H_g, W_g)</text>
+<line x1="1030" y1="202" x2="1030" y2="216" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- split by trans_channels -->
+<rect x="960" y="218" width="140" height="20" rx="4" fill="#c07830" stroke="#e09848" stroke-width="1.2"/>
+<text x="1030" y="228" font-size="7.5" fill="#fff" text-anchor="middle" font-weight="600">split(trans_channels, dim=1)</text>
+<text x="1030" y="236" font-size="6" fill="#f0d0a0" text-anchor="middle">&#x2192; [half1, half2]</text>
+
+<!-- global_act and global_embedding -->
+<circle cx="1030" cy="248" r="3.5" fill="#ccc"/>
+<line x1="1026" y1="248" x2="940" y2="248" stroke="#ccc" stroke-width="1"/>
+<line x1="940" y1="248" x2="940" y2="262" stroke="#ccc" stroke-width="1" marker-end="url(#a)"/>
+<line x1="1034" y1="248" x2="1120" y2="248" stroke="#ccc" stroke-width="1"/>
+<line x1="1120" y1="248" x2="1120" y2="262" stroke="#ccc" stroke-width="1" marker-end="url(#a)"/>
+
+<!-- global_act -->
+<rect x="880" y="264" width="120" height="20" rx="4" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1.2"/>
+<text x="940" y="274" font-size="7.5" fill="#fff" text-anchor="middle" font-weight="600">global_act: Conv1&#xD7;1</text>
+<text x="940" y="282" font-size="6" fill="#c8b0e0" text-anchor="middle">half &#x2192; oup, no act</text>
+
+<!-- global_embedding -->
+<rect x="1060" y="264" width="120" height="20" rx="4" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1.2"/>
+<text x="1120" y="274" font-size="7.5" fill="#fff" text-anchor="middle" font-weight="600">global_embed: Conv1&#xD7;1</text>
+<text x="1120" y="282" font-size="6" fill="#c8b0e0" text-anchor="middle">half &#x2192; oup, no act</text>
+
+<!-- Spatial alignment -->
+<line x1="940" y1="284" x2="940" y2="300" stroke="#ccc" stroke-width="1"/>
+<line x1="1120" y1="284" x2="1120" y2="300" stroke="#ccc" stroke-width="1"/>
+
+<!-- use_pool condition box -->
+<rect x="860" y="302" width="340" height="46" rx="6" fill="#2a2d33" stroke="#c8a030" stroke-width="1.5"/>
+<text x="1030" y="316" font-size="8" fill="#c8a030" font-weight="600" text-anchor="middle">Spatial Alignment (use_pool = H_l &lt; H_g)</text>
+<text x="1030" y="330" font-size="7" fill="#aaa" text-anchor="middle">True: AvgPool(global_act &#x2192; sig_act), AvgPool(global_embed) to (H_l, W_l)</text>
+<text x="1030" y="342" font-size="7" fill="#aaa" text-anchor="middle">False: h_sigmoid(global_act) + bilinear interp sig_act; bilinear interp global_embed to (H_l, W_l)</text>
+
+<!-- sig_act output -->
+<line x1="940" y1="348" x2="940" y2="370" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+<rect x="890" y="372" width="100" height="20" rx="4" fill="#c8a030" stroke="#e8c850" stroke-width="1.2"/>
+<text x="940" y="382" font-size="8" fill="#fff" text-anchor="middle" font-weight="600">sig_act</text>
+<text x="940" y="390" font-size="6" fill="#e8d890" text-anchor="middle">activation map</text>
+
+<!-- global_feat output -->
+<line x1="1120" y1="348" x2="1120" y2="370" stroke="#ccc" stroke-width="1.1" marker-end="url(#a)"/>
+<rect x="1070" y="372" width="100" height="20" rx="4" fill="#c8a030" stroke="#e8c850" stroke-width="1.2"/>
+<text x="1120" y="382" font-size="8" fill="#fff" text-anchor="middle" font-weight="600">global_feat</text>
+<text x="1120" y="390" font-size="6" fill="#e8d890" text-anchor="middle">embedding</text>
+
+<!-- × multiply: local_feat * sig_act -->
+<circle cx="900" cy="420" r="10" fill="#2a2d33" stroke="#e8c850" stroke-width="1.8"/>
+<text x="900" y="421" font-size="11" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">&#xD7;</text>
+<path d="M 770,278 L 770,420 L 890,420" stroke="#7aafcf" stroke-width="1.2" fill="none" marker-end="url(#ad)"/>
+<line x1="940" y1="392" x2="906" y2="414" stroke="#c8a030" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- + global_feat -->
+<circle cx="1030" cy="420" r="10" fill="#2a2d33" stroke="#e8c850" stroke-width="1.8"/>
+<text x="1030" y="421" font-size="11" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">+</text>
+<line x1="910" y1="420" x2="1020" y2="420" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+<line x1="1120" y1="392" x2="1036" y2="414" stroke="#c8a030" stroke-width="1.1" marker-end="url(#a)"/>
+
+<!-- Output formula -->
+<line x1="1030" y1="430" x2="1030" y2="450" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="1030" y="464" font-size="8.5" fill="#e0e0e0" text-anchor="middle" font-weight="600">out = local_feat &#xD7; sig_act + global_feat</text>
+
+<!-- Injection Output -->
+<line x1="1030" y1="470" x2="1030" y2="490" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="965" y="492" width="130" height="30" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="1030" y="507" font-size="10" fill="#fff" text-anchor="middle" font-weight="600">Injection Output</text>
+<text x="1030" y="519" font-size="7.5" fill="#aac8e8" text-anchor="middle">(B, oup, H_l, W_l)</text>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- 4. RepBlock (RIGHT BOTTOM)                                 -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<text x="900" y="560" font-size="15" fill="#e0e0e0" text-anchor="middle" font-weight="700">4. RepBlock</text>
+<text x="900" y="576" font-size="9" fill="#888" text-anchor="middle">conv1: RepVGGBlock(in, out) + (n-1)&#xD7;RepVGGBlock(out, out)</text>
+
+<!-- Input -->
+<rect x="845" y="586" width="110" height="30" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="900" y="601" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="600">Input</text>
+<text x="900" y="613" font-size="8" fill="#aac8e8" text-anchor="middle">(B, C, H, W)</text>
+<line x1="900" y1="616" x2="900" y2="640" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+
+<!-- RepBlock large box -->
+<rect x="690" y="642" width="420" height="280" rx="8" fill="#2a2520" stroke="#c07830" stroke-width="1.8" stroke-dasharray="6,3"/>
+<text x="900" y="662" font-size="12" fill="#e0a848" text-anchor="middle" font-weight="700">RepBlock: conv1(in&#x2192;out) + block(n-1 &#xD7; RepVGG(out&#x2192;out))</text>
+
+<!-- ── RepVGGBlock expanded ── -->
+<rect x="710" y="674" width="380" height="210" rx="6" fill="#1e2028" stroke="#888" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="900" y="690" font-size="10" fill="#ccc" text-anchor="middle" font-weight="600">RepVGGBlock (training: 3-branch, deploy: fused 3&#xD7;3)</text>
+
+<!-- Input split to 3 branches -->
+<circle cx="900" cy="706" r="4" fill="#ccc"/>
+<line x1="896" y1="706" x2="780" y2="706" stroke="#ccc" stroke-width="1.2"/>
+<line x1="780" y1="706" x2="780" y2="722" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+<line x1="900" y1="710" x2="900" y2="722" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+<line x1="904" y1="706" x2="1020" y2="706" stroke="#ccc" stroke-width="1.2"/>
+<line x1="1020" y1="706" x2="1020" y2="722" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+
+<!-- Branch 1: rbr_dense (3x3) -->
+<rect x="722" y="724" width="116" height="52" rx="5" fill="#3a8a5a" stroke="#5ab87a" stroke-width="1.3"/>
+<text x="780" y="738" font-size="8.5" fill="#fff" text-anchor="middle" font-weight="600">rbr_dense</text>
+<text x="780" y="750" font-size="7" fill="#a0d8b0" text-anchor="middle">Conv3&#xD7;3 + BN</text>
+<text x="780" y="762" font-size="6.5" fill="#a0d8b0" text-anchor="middle">stride=1, pad=1, groups=1</text>
+<text x="780" y="774" font-size="7" fill="#a0d8b0" text-anchor="middle">(conv_bn)</text>
+
+<!-- Branch 2: rbr_1x1 -->
+<rect x="850" y="724" width="100" height="52" rx="5" fill="#7b5ea7" stroke="#9b7ec7" stroke-width="1.3"/>
+<text x="900" y="738" font-size="8.5" fill="#fff" text-anchor="middle" font-weight="600">rbr_1x1</text>
+<text x="900" y="750" font-size="7" fill="#c8b0e0" text-anchor="middle">Conv1&#xD7;1 + BN</text>
+<text x="900" y="762" font-size="6.5" fill="#c8b0e0" text-anchor="middle">padding=0</text>
+<text x="900" y="774" font-size="7" fill="#c8b0e0" text-anchor="middle">(conv_bn)</text>
+
+<!-- Branch 3: rbr_identity -->
+<rect x="962" y="724" width="116" height="52" rx="5" fill="#c07830" stroke="#e09848" stroke-width="1.3"/>
+<text x="1020" y="738" font-size="8.5" fill="#fff" text-anchor="middle" font-weight="600">rbr_identity</text>
+<text x="1020" y="750" font-size="7" fill="#f0d0a0" text-anchor="middle">BatchNorm2d</text>
+<text x="1020" y="762" font-size="6.5" fill="#f0d0a0" text-anchor="middle">if in_c==out_c</text>
+<text x="1020" y="774" font-size="7" fill="#f0d0a0" text-anchor="middle">&amp;&amp; stride==1</text>
+
+<!-- Sum of 3 branches -->
+<line x1="780" y1="776" x2="780" y2="800" stroke="#ccc" stroke-width="1"/>
+<line x1="900" y1="776" x2="900" y2="800" stroke="#ccc" stroke-width="1"/>
+<line x1="1020" y1="776" x2="1020" y2="800" stroke="#ccc" stroke-width="1"/>
+
+<circle cx="900" cy="808" r="12" fill="#2a2d33" stroke="#e8c850" stroke-width="2"/>
+<text x="900" y="804" font-size="12" fill="#e8c850" text-anchor="middle" dominant-baseline="central" font-weight="700">&#x03A3;</text>
+<text x="900" y="816" font-size="7" fill="#e8c850" text-anchor="middle" font-weight="600">3</text>
+
+<!-- SiLU -->
+<line x1="900" y1="820" x2="900" y2="836" stroke="#ccc" stroke-width="1.2" marker-end="url(#a)"/>
+<rect x="860" y="838" width="80" height="20" rx="4" fill="#555" stroke="#888" stroke-width="1.2"/>
+<text x="900" y="848" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">SiLU</text>
+
+<!-- SE note -->
+<text x="900" y="868" font-size="7" fill="#aaa" text-anchor="middle">SE (Squeeze-Excitation): optional, default=Identity</text>
+
+<!-- RepVGGBlock formula -->
+<text x="900" y="880" font-size="7.5" fill="#e0e0e0" text-anchor="middle" font-weight="600">SiLU(rbr_dense(x) + rbr_1x1(x) + rbr_identity(x))</text>
+
+<!-- Deploy mode annotation -->
+<rect x="710" y="888" width="380" height="20" rx="4" fill="#2a2020" stroke="#c04040" stroke-width="0.8"/>
+<text x="900" y="898" font-size="7" fill="#ff8080" text-anchor="middle">Deploy mode: fuse to single Conv3&#xD7;3+bias (kernel=3x3+1x1+id, bias=bn3+bn1+bnid)</text>
+
+<!-- RepBlock Output -->
+<line x1="900" y1="910" x2="900" y2="940" stroke="#ccc" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="835" y="942" width="130" height="30" rx="6" fill="#3a6ea5" stroke="#5a9ed6" stroke-width="1.5"/>
+<text x="900" y="957" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="600">RepBlock Output</text>
+<text x="900" y="969" font-size="8" fill="#aac8e8" text-anchor="middle">(B, C, H, W)</text>
+
+<!-- ════════ Flow connections ════════ -->
+<!-- LAF_h output → Injection input (conceptual) -->
+<path d="M 365,792 L 580,792 L 580,115 L 830,115" stroke="#5a9ed6" stroke-width="1.8" fill="none" marker-end="url(#ad)"/>
+<text x="590" y="450" font-size="9" fill="#5a9ed6" text-anchor="start" font-weight="600" transform="rotate(-90,590,450)">LAF_h &#x2192; Injection [x_l, x_g]</text>
+
+<!-- Injection output → RepBlock input -->
+<path d="M 1030,522 L 1030,540 L 1140,540 L 1140,601 L 955,601" stroke="#5a9ed6" stroke-width="1.8" fill="none" marker-end="url(#ad)"/>
+<text x="1148" y="570" font-size="8" fill="#5a9ed6" text-anchor="start" transform="rotate(90,1148,570)">Injection &#x2192; RepBlock</text>
+
+</svg>
+
+<!-- Color legend -->
+<div style="display:flex;gap:20px;justify-content:center;margin-top:8px;flex-wrap:wrap;">
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#3a6ea5;border:1px solid #5a9ed6;display:inline-block;"></span> Input / Output
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#2a8a8a;border:1px solid #4ab8b8;display:inline-block;"></span> Conv Projection
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#7b5ea7;border:1px solid #9b7ec7;display:inline-block;"></span> Branch / Head
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#3a8a5a;border:1px solid #5ab87a;display:inline-block;"></span> Res-Through / Conv
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#c07830;border:1px solid #e09848;display:inline-block;"></span> Feature Transform
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:11px;">
+    <span style="width:16px;height:16px;border-radius:4px;background:#c8a030;border:1px solid #e8c850;display:inline-block;"></span> Energy Combine
+  </span>
+</div>
+<div style="text-align:center;margin-top:6px;color:#666;font-size:10px;">
+  LIR pipeline: TopBasicLayer (Transformer attn + MLP, depth&#xD7;top_Block) &#x2192; LAF_h (pool + cat) &#x2192; Injection (local&#xD7;sig_act + global) &#x2192; RepBlock (n&#xD7;RepVGGBlock)
+</div>
+</body>
+</html>

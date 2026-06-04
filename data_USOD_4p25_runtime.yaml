@@ -1,0 +1,7 @@
+path: /share/home/u2415363072/4.25/ultralyticsPro--YOLO11/datasets/USOD
+train: images/train
+val: images/val
+test:
+
+names:
+  0: target

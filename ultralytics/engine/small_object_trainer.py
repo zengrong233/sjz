@@ -142,6 +142,11 @@ class SmallObjectABTrainer(DetectionTrainer):
                 "small_boost": self.ab_cfg.get("small_boost", 1.3),
                 "ssds_mode": self.ab_cfg.get("ssds_mode", "soft"),
                 "enable_ssds": True,
+                "ssds_p3_fallback": self.ab_cfg.get("ssds_p3_fallback", False),
+                "ssds_p3_fallback_topk": self.ab_cfg.get("ssds_p3_fallback_topk", 1),
+                "ssds_p3_fallback_score": self.ab_cfg.get("ssds_p3_fallback_score", 0.2),
+                "ssds_p3_fallback_min_area": self.ab_cfg.get("ssds_p3_fallback_min_area", 64.0),
+                "ssds_p3_fallback_max_area": self.ab_cfg.get("ssds_p3_fallback_max_area", 0.0),
             }
             model_ref = de_parallel(self.model)
             ssds_loss = SSDSDetectionLoss(model_ref, ssds_cfg=ssds_cfg)
@@ -186,6 +191,11 @@ class SmallObjectABTrainer(DetectionTrainer):
                 "small_boost": self.ab_cfg.get("small_boost", 1.3),
                 "ssds_mode": self.ab_cfg.get("ssds_mode", "soft"),
                 "enable_ssds": True,
+                "ssds_p3_fallback": self.ab_cfg.get("ssds_p3_fallback", False),
+                "ssds_p3_fallback_topk": self.ab_cfg.get("ssds_p3_fallback_topk", 1),
+                "ssds_p3_fallback_score": self.ab_cfg.get("ssds_p3_fallback_score", 0.2),
+                "ssds_p3_fallback_min_area": self.ab_cfg.get("ssds_p3_fallback_min_area", 64.0),
+                "ssds_p3_fallback_max_area": self.ab_cfg.get("ssds_p3_fallback_max_area", 0.0),
             }
             return SSDSDetectionLoss(de_parallel(self.model), ssds_cfg=ssds_cfg)
         return super().init_criterion()
@@ -271,9 +281,15 @@ class SmallObjectABTrainer(DetectionTrainer):
                 rw = criterion.reweighter
                 metrics["ssds/tiny_p2_ratio"] = round(rw.stats.get("tiny_p2_ratio", 0.0), 4)
                 metrics["ssds/small_p3_ratio"] = round(rw.stats.get("small_p3_ratio", 0.0), 4)
+                metrics["ssds/small_p3_native_ratio"] = round(rw.stats.get("small_p3_native_ratio", 0.0), 4)
+                metrics["ssds/small_p3_fallback_ratio"] = round(rw.stats.get("small_p3_fallback_ratio", 0.0), 4)
+                metrics["ssds/small_p3_fallback_count"] = int(rw.stats.get("fallback_count", 0))
             else:
                 metrics["ssds/tiny_p2_ratio"] = 0.0
                 metrics["ssds/small_p3_ratio"] = 0.0
+                metrics["ssds/small_p3_native_ratio"] = 0.0
+                metrics["ssds/small_p3_fallback_ratio"] = 0.0
+                metrics["ssds/small_p3_fallback_count"] = 0
         super().save_metrics(metrics)
 
     # ------------------------------------------------------------------

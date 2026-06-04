@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>PRR — RefocusSingle + MFFF 详细流程图</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #fff; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; padding: 24px; }
+  svg text { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 1080 780" width="1080" height="780" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="ah" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#555"/></marker>
+  <marker id="ahs" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0,6 2,0 4" fill="#999"/></marker>
+  <marker id="ahr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#c44"/></marker>
+  <marker id="ahb" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#8B6914"/></marker>
+</defs>
+
+<!-- ══════════════ RefocusSingle 区域 ══════════════ -->
+<rect x="16" y="12" width="1048" height="245" rx="12" fill="#fef4f4" stroke="#f0c8c8" stroke-width="1.5"/>
+<text x="36" y="38" font-size="15" fill="#a04050" font-weight="700">RefocusSingle</text>
+
+<!-- Input -->
+<text x="36" y="142" font-size="11" fill="#999" text-anchor="middle">Input</text>
+<line x1="56" y1="138" x2="90" y2="138" stroke="#555" stroke-width="1.8" marker-end="url(#ah)"/>
+
+<!-- 分叉点 -->
+<circle cx="100" cy="138" r="5" fill="#666"/>
+
+<!-- ── 上路: CandidateHeatmapHead ── -->
+<line x1="100" y1="133" x2="100" y2="72" stroke="#999" stroke-width="1.3" marker-end="url(#ahs)"/>
+<line x1="100" y1="72" x2="128" y2="72" stroke="#999" stroke-width="1.3" marker-end="url(#ahs)"/>
+
+<!-- DWConv3x3 -->
+<rect x="130" y="54" width="82" height="36" rx="7" fill="#a8dba8" stroke="#6aab6a" stroke-width="1.5"/>
+<text x="171" y="67" font-size="10.5" fill="#333" text-anchor="middle" font-weight="600">DWConv 3×3</text>
+<text x="171" y="80" font-size="8.5" fill="#666" text-anchor="middle">groups=C</text>
+<line x1="212" y1="72" x2="228" y2="72" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- BN+SiLU -->
+<rect x="230" y="56" width="58" height="32" rx="6" fill="#d8d8d8" stroke="#aaa" stroke-width="1.3"/>
+<text x="259" y="72" font-size="10" fill="#444" text-anchor="middle" font-weight="600">BN+SiLU</text>
+<line x1="288" y1="72" x2="304" y2="72" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- PWConv1x1 -->
+<rect x="306" y="54" width="82" height="36" rx="7" fill="#9dc3e6" stroke="#5a8ab5" stroke-width="1.5"/>
+<text x="347" y="67" font-size="10.5" fill="#333" text-anchor="middle" font-weight="600">PWConv 1×1</text>
+<text x="347" y="80" font-size="8.5" fill="#666" text-anchor="middle">→ C/4</text>
+<line x1="388" y1="72" x2="404" y2="72" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- BN+SiLU -->
+<rect x="406" y="56" width="58" height="32" rx="6" fill="#d8d8d8" stroke="#aaa" stroke-width="1.3"/>
+<text x="435" y="72" font-size="10" fill="#444" text-anchor="middle" font-weight="600">BN+SiLU</text>
+<line x1="464" y1="72" x2="480" y2="72" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- Conv1x1 + Sigmoid -->
+<rect x="482" y="50" width="86" height="42" rx="7" fill="#f5d76e" stroke="#c9a83e" stroke-width="1.5"/>
+<text x="525" y="66" font-size="10.5" fill="#333" text-anchor="middle" font-weight="600">Conv 1×1</text>
+<text x="525" y="80" font-size="9" fill="#666" text-anchor="middle">→ Sigmoid</text>
+
+<!-- heatmap 标签 -->
+<line x1="568" y1="72" x2="610" y2="72" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+<rect x="612" y="58" width="100" height="28" rx="5" fill="#fff8e0" stroke="#e0d080" stroke-width="1"/>
+<text x="662" y="72" font-size="10" fill="#886a14" text-anchor="middle" font-weight="600">heatmap</text>
+<text x="662" y="84" font-size="8" fill="#aa8830" text-anchor="middle">(B, 1, H, W)</text>
+
+<!-- heatmap 向下箭头到 refocus 模块 -->
+<line x1="662" y1="86" x2="662" y2="120" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- ── 下路: SoftRefocusEnhancer / GridSampleRefiner ── -->
+<line x1="100" y1="143" x2="100" y2="188" stroke="#999" stroke-width="1.3"/>
+<line x1="100" y1="188" x2="128" y2="188" stroke="#555" stroke-width="1.5" marker-end="url(#ah)"/>
+
+<!-- x × heatmap 乘法 -->
+<circle cx="142" cy="188" r="12" fill="#fff" stroke="#888" stroke-width="1.5"/>
+<text x="142" y="189" font-size="13" fill="#888" text-anchor="middle" dominant-baseline="central" font-weight="700">×</text>
+<!-- heatmap 向下连线到乘法: 先下再左再下 -->
+<path d="M 662,86 L 662,118 L 142,118 L 142,176" stroke="#999" stroke-width="1.3" fill="none" marker-end="url(#ahs)"/>
+<text x="400" y="113" font-size="8" fill="#aa8830" text-anchor="middle">heatmap → refocus</text>
+<line x1="154" y1="188" x2="178" y2="188" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- DWConv3x3 -->
+<rect x="180" y="170" width="72" height="36" rx="7" fill="#a8dba8" stroke="#6aab6a" stroke-width="1.5"/>
+<text x="216" y="183" font-size="10" fill="#333" text-anchor="middle" font-weight="600">DWConv</text>
+<text x="216" y="196" font-size="8.5" fill="#666" text-anchor="middle">3×3, grp=C</text>
+<line x1="252" y1="188" x2="268" y2="188" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- BN+SiLU -->
+<rect x="270" y="172" width="58" height="32" rx="6" fill="#d8d8d8" stroke="#aaa" stroke-width="1.3"/>
+<text x="299" y="188" font-size="10" fill="#444" text-anchor="middle" font-weight="600">BN+SiLU</text>
+<line x1="328" y1="188" x2="344" y2="188" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- PWConv1x1 -->
+<rect x="346" y="170" width="72" height="36" rx="7" fill="#9dc3e6" stroke="#5a8ab5" stroke-width="1.5"/>
+<text x="382" y="183" font-size="10" fill="#333" text-anchor="middle" font-weight="600">PWConv</text>
+<text x="382" y="196" font-size="8.5" fill="#666" text-anchor="middle">1×1</text>
+<line x1="418" y1="188" x2="434" y2="188" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- BN+SiLU -->
+<rect x="436" y="172" width="58" height="32" rx="6" fill="#d8d8d8" stroke="#aaa" stroke-width="1.3"/>
+<text x="465" y="188" font-size="10" fill="#444" text-anchor="middle" font-weight="600">BN+SiLU</text>
+<!-- = enhanced -->
+
+<!-- γ 乘 -->
+<line x1="494" y1="188" x2="520" y2="188" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+<circle cx="534" cy="188" r="12" fill="#fff" stroke="#888" stroke-width="1.5"/>
+<text x="534" y="189" font-size="11" fill="#888" text-anchor="middle" dominant-baseline="central" font-weight="700">γ·</text>
+<line x1="546" y1="188" x2="580" y2="188" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- skip connection (x) -->
+<path d="M 92,138 L 92,228 L 588,228 L 588,188" stroke="#b07040" stroke-width="1.5" stroke-dasharray="6,3" fill="none" marker-end="url(#ahb)"/>
+<text x="340" y="222" font-size="8.5" fill="#b07040" text-anchor="middle">x (skip)</text>
+
+<!-- ⊕ 加法 -->
+<circle cx="600" cy="188" r="14" fill="#fff" stroke="#c44" stroke-width="2"/>
+<text x="600" y="189" font-size="15" fill="#c44" text-anchor="middle" dominant-baseline="central" font-weight="700">+</text>
+
+<!-- Output -->
+<line x1="614" y1="188" x2="700" y2="188" stroke="#555" stroke-width="2" marker-end="url(#ah)"/>
+<text x="710" y="192" font-size="11" fill="#999" text-anchor="start">Output</text>
+
+<!-- 模式注释 -->
+<text x="180" y="240" font-size="9" fill="#999">SoftRefocusEnhancer (mode=softmask): weighted=x×heatmap → enhance → x+γ·enhanced</text>
+<text x="180" y="252" font-size="9" fill="#999">GridSampleRefiner (mode=gridsample): offset_pred(cat[x,hmap]) → grid_sample(x) → resampled → x+γ·enhance(resampled)</text>
+
+<!-- ══════════════ MFFF 区域 ══════════════ -->
+<rect x="16" y="275" width="1048" height="490" rx="12" fill="#f0f5fa" stroke="#c0d8ee" stroke-width="1.5"/>
+<text x="36" y="301" font-size="15" fill="#4a6fa4" font-weight="700">MFFF (Multi-Frequency Feature Fusion)</text>
+
+<!-- Input -->
+<text x="36" y="480" font-size="11" fill="#999" text-anchor="middle">Input</text>
+<line x1="56" y1="476" x2="90" y2="476" stroke="#555" stroke-width="1.8" marker-end="url(#ah)"/>
+
+<!-- cv1 -->
+<rect x="92" y="458" width="82" height="38" rx="7" fill="#f4a0b0" stroke="#d4707e" stroke-width="1.5"/>
+<text x="133" y="472" font-size="11" fill="#333" text-anchor="middle" font-weight="600">cv1</text>
+<text x="133" y="487" font-size="9" fill="#666" text-anchor="middle">Conv 1×1</text>
+<line x1="174" y1="476" x2="200" y2="476" stroke="#555" stroke-width="1.5" marker-end="url(#ah)"/>
+
+<!-- Split 三角 -->
+<polygon points="205,462 230,476 205,490" fill="#6a8fc4" stroke="#4a6fa4" stroke-width="1.5"/>
+<text x="215" y="478" font-size="8" fill="#fff" text-anchor="middle" font-weight="700">S</text>
+
+<!-- ── 上路: ok_branch (25%) ── -->
+<line x1="230" y1="470" x2="230" y2="370" stroke="#999" stroke-width="1.3"/>
+<line x1="230" y1="370" x2="260" y2="370" stroke="#555" stroke-width="1.5" marker-end="url(#ah)"/>
+<text x="246" y="410" font-size="9" fill="#5a8ab5" text-anchor="middle" transform="rotate(-90,246,410)">c₁ = 25%</text>
+
+<!-- ┌─────────── ImprovedFFTKernel 大框 ───────────┐ -->
+<rect x="262" y="318" width="640" height="260" rx="10" fill="#fde8d0" stroke="#d4a060" stroke-width="1.8" stroke-dasharray="6,3"/>
+<text x="280" y="340" font-size="13" fill="#a06820" font-weight="700">ImprovedFFTKernel</text>
+
+<!-- in_conv: Conv1x1 + GELU -->
+<rect x="278" y="354" width="76" height="40" rx="7" fill="#f4a0b0" stroke="#d4707e" stroke-width="1.5"/>
+<text x="316" y="369" font-size="10.5" fill="#333" text-anchor="middle" font-weight="600">Conv 1×1</text>
+<text x="316" y="383" font-size="9" fill="#666" text-anchor="middle">+ GELU</text>
+<line x1="354" y1="374" x2="380" y2="374" stroke="#555" stroke-width="1.5" marker-end="url(#ah)"/>
+
+<!-- out = in_conv(x) 的分叉点 -->
+<circle cx="390" cy="374" r="5" fill="#666"/>
+<text x="390" y="362" font-size="8" fill="#888" text-anchor="middle">out</text>
+
+<!-- ═══ FCA 双路并行 ═══ -->
+<rect x="400" y="348" width="255" height="72" rx="6" fill="#e8f0fa" stroke="#a0b8d8" stroke-width="1" stroke-dasharray="4,2"/>
+<text x="410" y="362" font-size="9" fill="#5a8ab5" font-weight="600">FCA (频域通道注意力)</text>
+
+<!-- 路径A: FFT2D -->
+<line x1="390" y1="369" x2="390" y2="360" stroke="#999" stroke-width="1.2"/>
+<line x1="390" y1="360" x2="412" y2="360" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+<rect x="414" y="366" width="62" height="26" rx="5" fill="#9dc3e6" stroke="#5a8ab5" stroke-width="1.3"/>
+<text x="445" y="379" font-size="9.5" fill="#333" text-anchor="middle" font-weight="600">FFT2D</text>
+<line x1="476" y1="379" x2="500" y2="379" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- 路径B: GAP + Conv1x1 → x_att -->
+<line x1="390" y1="379" x2="390" y2="398" stroke="#999" stroke-width="1.2"/>
+<line x1="390" y1="398" x2="412" y2="398" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+<rect x="414" y="393" width="62" height="26" rx="5" fill="#9dc3e6" stroke="#5a8ab5" stroke-width="1.3"/>
+<text x="445" y="401" font-size="9" fill="#333" text-anchor="middle" font-weight="600">GAP</text>
+<text x="445" y="413" font-size="8" fill="#666" text-anchor="middle">+ Conv1×1</text>
+<line x1="476" y1="406" x2="498" y2="406" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- x_att 标签 -->
+<text x="494" y="418" font-size="8" fill="#886a14" font-weight="600">x_att</text>
+
+<!-- × 乘法: x_att × FFT2D(out) -->
+<circle cx="512" cy="386" r="11" fill="#fff" stroke="#888" stroke-width="1.5"/>
+<text x="512" y="387" font-size="12" fill="#888" text-anchor="middle" dominant-baseline="central" font-weight="700">×</text>
+<line x1="523" y1="386" x2="545" y2="386" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- iFFT2D + |abs| -->
+<rect x="547" y="372" width="62" height="28" rx="5" fill="#d8d8d8" stroke="#aaa" stroke-width="1.3"/>
+<text x="578" y="382" font-size="9" fill="#333" text-anchor="middle" font-weight="600">iFFT2D</text>
+<text x="578" y="394" font-size="8.5" fill="#666" text-anchor="middle">|abs|</text>
+<line x1="609" y1="386" x2="632" y2="386" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- x_fca 标签 -->
+<text x="622" y="376" font-size="8" fill="#886a14" font-weight="600">x_fca</text>
+
+<!-- ═══ SCA 多尺度 ═══ -->
+<rect x="634" y="370" width="88" height="34" rx="6" fill="#a8dba8" stroke="#6aab6a" stroke-width="1.5"/>
+<text x="678" y="382" font-size="9.5" fill="#333" text-anchor="middle" font-weight="600">Conv 1+3+5</text>
+<text x="678" y="396" font-size="8.5" fill="#666" text-anchor="middle">Multi-Scale</text>
+<line x1="722" y1="387" x2="748" y2="387" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- x_sca 标签 -->
+<text x="736" y="378" font-size="8" fill="#886a14" font-weight="600">x_sca</text>
+
+<!-- Channel Attention (输入是 x_att，不是 SCA 输出!) -->
+<!-- x_att 从 FCA 路径B 引出 -->
+<path d="M 494,406 L 494,440 L 750,440 L 750,408" stroke="#c9a83e" stroke-width="1.3" stroke-dasharray="4,2" fill="none" marker-end="url(#ahs)"/>
+<text x="620" y="436" font-size="8" fill="#c9a83e" text-anchor="middle">x_att → Channel Attn</text>
+
+<rect x="752" y="395" width="66" height="28" rx="5" fill="#f5d76e" stroke="#c9a83e" stroke-width="1.5"/>
+<text x="785" y="404" font-size="9" fill="#333" text-anchor="middle" font-weight="600">Ch Attn</text>
+<text x="785" y="416" font-size="7.5" fill="#666" text-anchor="middle">c→c/4→c, σ</text>
+
+<!-- channel weights × x_sca -->
+<circle cx="835" cy="400" r="10" fill="#fff" stroke="#888" stroke-width="1.5"/>
+<text x="835" y="401" font-size="11" fill="#888" text-anchor="middle" dominant-baseline="central" font-weight="700">×</text>
+<line x1="818" y1="409" x2="828" y2="404" stroke="#c9a83e" stroke-width="1.2" marker-end="url(#ahs)"/>
+<line x1="748" y1="387" x2="825" y2="395" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+<line x1="845" y1="400" x2="862" y2="400" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- ═══ FFM (Frequency Gating Module) ═══ -->
+<rect x="864" y="385" width="36" height="30" rx="6" fill="#c5a3d9" stroke="#9070a8" stroke-width="1.5"/>
+<text x="882" y="397" font-size="9.5" fill="#fff" text-anchor="middle" font-weight="600">FFM</text>
+<text x="882" y="409" font-size="7.5" fill="#e8d0f0" text-anchor="middle">gate</text>
+
+<!-- FFM 输出到最终融合 -->
+<line x1="882" y1="415" x2="882" y2="445" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- ═══ 最终 4 项融合 ═══ -->
+
+<!-- dw_33: DWConv 31×31 作用于 out -->
+<path d="M 390,379 L 390,460 L 520,460" stroke="#d4a060" stroke-width="1.2" stroke-dasharray="4,2" fill="none"/>
+<rect x="522" y="448" width="72" height="26" rx="5" fill="#f4c280" stroke="#c49050" stroke-width="1.5"/>
+<text x="558" y="456" font-size="8.5" fill="#333" text-anchor="middle" font-weight="600">DWConv</text>
+<text x="558" y="468" font-size="8.5" fill="#666" text-anchor="middle">31×31</text>
+<line x1="594" y1="461" x2="630" y2="461" stroke="#d4a060" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- dw_11: DWConv 1×1 作用于 out -->
+<path d="M 390,379 L 390,490 L 520,490" stroke="#d4a060" stroke-width="1.2" stroke-dasharray="4,2" fill="none"/>
+<rect x="522" y="478" width="72" height="26" rx="5" fill="#f4c280" stroke="#c49050" stroke-width="1.5"/>
+<text x="558" y="486" font-size="8.5" fill="#333" text-anchor="middle" font-weight="600">DWConv</text>
+<text x="558" y="498" font-size="8.5" fill="#666" text-anchor="middle">1×1</text>
+<line x1="594" y1="491" x2="630" y2="491" stroke="#d4a060" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- x skip (原始输入) -->
+<path d="M 272,374 L 272,310 L 680,310 L 680,440" stroke="#b07040" stroke-width="1.5" stroke-dasharray="6,3" fill="none"/>
+<text x="475" y="306" font-size="8.5" fill="#b07040" text-anchor="middle">x (skip connection)</text>
+
+<!-- Σ₄ 四项求和 -->
+<circle cx="660" cy="470" r="16" fill="#fff" stroke="#c44" stroke-width="2.2"/>
+<text x="660" y="466" font-size="12" fill="#c44" text-anchor="middle" dominant-baseline="central" font-weight="700">Σ</text>
+<text x="660" y="480" font-size="8" fill="#c44" text-anchor="middle" font-weight="600">4</text>
+
+<!-- FFM → Σ₄ -->
+<line x1="882" y1="445" x2="882" y2="510" stroke="#999" stroke-width="1.2"/>
+<path d="M 882,510 L 676,510 L 676,486" stroke="#999" stroke-width="1.2" fill="none" marker-end="url(#ahs)"/>
+<!-- dw33 → Σ₄ -->
+<line x1="630" y1="461" x2="646" y2="466" stroke="#d4a060" stroke-width="1.2" marker-end="url(#ahs)"/>
+<!-- dw11 → Σ₄ -->
+<line x1="630" y1="491" x2="646" y2="478" stroke="#d4a060" stroke-width="1.2" marker-end="url(#ahs)"/>
+<!-- x skip → Σ₄ -->
+<line x1="680" y1="440" x2="672" y2="454" stroke="#b07040" stroke-width="1.5" marker-end="url(#ahb)"/>
+
+<!-- Σ₄ 注释 -->
+<text x="660" y="530" font-size="8" fill="#888" text-anchor="middle">x + DW31(out) + DW1(out) + FFM(x_sca)</text>
+
+<!-- → ReLU -->
+<line x1="676" y1="470" x2="710" y2="470" stroke="#555" stroke-width="1.5" marker-end="url(#ah)"/>
+<rect x="712" y="454" width="52" height="32" rx="6" fill="#d8d8d8" stroke="#aaa" stroke-width="1.3"/>
+<text x="738" y="470" font-size="10" fill="#444" text-anchor="middle" font-weight="600">ReLU</text>
+
+<!-- → out_conv Conv1x1 -->
+<line x1="764" y1="470" x2="790" y2="470" stroke="#555" stroke-width="1.5" marker-end="url(#ah)"/>
+<rect x="792" y="454" width="72" height="32" rx="6" fill="#f4a0b0" stroke="#d4707e" stroke-width="1.5"/>
+<text x="828" y="466" font-size="10" fill="#333" text-anchor="middle" font-weight="600">Conv 1×1</text>
+<text x="828" y="480" font-size="8.5" fill="#666" text-anchor="middle">(out_conv)</text>
+
+<!-- ImprovedFFTKernel 输出 -->
+<line x1="864" y1="470" x2="920" y2="470" stroke="#555" stroke-width="1.8" marker-end="url(#ah)"/>
+
+<!-- ── 下路: identity (75%) ── -->
+<line x1="230" y1="482" x2="230" y2="540" stroke="#999" stroke-width="1.3"/>
+<text x="246" y="520" font-size="9" fill="#888" text-anchor="middle" transform="rotate(-90,246,520)">c₂ = 75%</text>
+<line x1="230" y1="540" x2="880" y2="540" stroke="#999" stroke-width="1.3" stroke-dasharray="5,3"/>
+<text x="555" y="556" font-size="9.5" fill="#888" text-anchor="middle">identity (pass-through)</text>
+
+<!-- ── Cat 汇合 ── -->
+<rect x="922" y="458" width="50" height="32" rx="6" fill="#f5d76e" stroke="#c9a83e" stroke-width="1.8"/>
+<text x="947" y="474" font-size="11" fill="#333" text-anchor="middle" font-weight="700">Cat</text>
+<text x="947" y="486" font-size="8" fill="#666" text-anchor="middle">dim=1</text>
+
+<!-- identity 上来到 Cat -->
+<line x1="880" y1="540" x2="947" y2="540" stroke="#999" stroke-width="1.2"/>
+<line x1="947" y1="540" x2="947" y2="490" stroke="#999" stroke-width="1.2" marker-end="url(#ahs)"/>
+
+<!-- → cv2 -->
+<line x1="972" y1="474" x2="1000" y2="474" stroke="#555" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="1002" y="456" width="48" height="36" rx="7" fill="#f4a0b0" stroke="#d4707e" stroke-width="1.5"/>
+<text x="1026" y="470" font-size="11" fill="#333" text-anchor="middle" font-weight="600">cv2</text>
+<text x="1026" y="485" font-size="8.5" fill="#666" text-anchor="middle">1×1</text>
+
+<!-- Final Output -->
+<line x1="1050" y1="474" x2="1060" y2="474" stroke="#555" stroke-width="2" marker-end="url(#ah)"/>
+
+<!-- ── RefocusSingle → MFFF 连接箭头 ── -->
+<line x1="540" y1="257" x2="540" y2="275" stroke="#555" stroke-width="2" marker-end="url(#ah)"/>
+
+<!-- ── FFM 内部注释 ── -->
+<rect x="280" y="580" width="380" height="55" rx="6" fill="#f8f0fa" stroke="#d0b8e0" stroke-width="1"/>
+<text x="290" y="596" font-size="9.5" fill="#7050a0" font-weight="600">FFM (Frequency Gating Module) 内部:</text>
+<text x="290" y="610" font-size="8.5" fill="#888">x → dwconv1 = x1,  x → dwconv2 = x2</text>
+<text x="290" y="622" font-size="8.5" fill="#888">x1 × FFT2D(x2) → iFFT2D → |abs| → ×α + x×β   (α,β 可学习)</text>
+
+</svg>
+</body>
+</html>

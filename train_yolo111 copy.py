@@ -49,12 +49,23 @@ def main(opt):
         train_kwargs = {
             "data": data,
             "epochs": opt.epochs,
+            "patience": opt.patience,
             "imgsz": opt.imgsz,
             "workers": opt.workers,
+            "seed": opt.seed,
             "batch": opt.batch,
             "device": device,
             "exist_ok": opt.exist_ok,
             "amp": opt.amp,
+            "lr0": opt.lr0,
+            "lrf": opt.lrf,
+            "warmup_epochs": opt.warmup_epochs,
+            "warmup_momentum": opt.warmup_momentum,
+            "warmup_bias_lr": opt.warmup_bias_lr,
+            "close_mosaic": opt.close_mosaic,
+            "mosaic": opt.mosaic,
+            "scale": opt.scale,
+            "translate": opt.translate,
         }
         if opt.project:
             train_kwargs["project"] = opt.project
@@ -90,6 +101,11 @@ def main(opt):
             "small_area_thr": opt.small_area_thr,
             "tiny_boost": opt.tiny_boost,
             "small_boost": opt.small_boost,
+            "ssds_p3_fallback": opt.ssds_p3_fallback,
+            "ssds_p3_fallback_topk": opt.ssds_p3_fallback_topk,
+            "ssds_p3_fallback_score": opt.ssds_p3_fallback_score,
+            "ssds_p3_fallback_min_area": opt.ssds_p3_fallback_min_area,
+            "ssds_p3_fallback_max_area": opt.ssds_p3_fallback_max_area,
         }
 
         # 构建 overrides（与 model.train() 内部逻辑一致）
@@ -97,13 +113,24 @@ def main(opt):
             "model": yaml,
             "data": data,
             "epochs": opt.epochs,
+            "patience": opt.patience,
             "imgsz": opt.imgsz,
             "workers": opt.workers,
+            "seed": opt.seed,
             "batch": opt.batch,
             "device": device,
             "exist_ok": opt.exist_ok,
             "amp": opt.amp,
             "task": "detect",
+            "lr0": opt.lr0,
+            "lrf": opt.lrf,
+            "warmup_epochs": opt.warmup_epochs,
+            "warmup_momentum": opt.warmup_momentum,
+            "warmup_bias_lr": opt.warmup_bias_lr,
+            "close_mosaic": opt.close_mosaic,
+            "mosaic": opt.mosaic,
+            "scale": opt.scale,
+            "translate": opt.translate,
         }
         if opt.project:
             overrides["project"] = opt.project
@@ -124,7 +151,7 @@ def parse_opt(known=False):
     )
     # 原有参数
     parser.add_argument('--cfg', type=str,
-                        default=r'YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3.yaml',
+                        default=r'YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-SSA-P1-NoSAC-FullC2f.yaml',
                         help='模型 yaml 路径')
     parser.add_argument('--weights', type=str,
                         default=r'yolo11n.pt',
@@ -136,12 +163,16 @@ def parse_opt(known=False):
                         help='cuda 设备 (例如 0 或 0,1,2,3 或 cpu)')
     parser.add_argument('--epochs', type=int, default=300,
                         help='训练轮数')
+    parser.add_argument('--patience', type=int, default=100,
+                        help='EarlyStopping patience')
     parser.add_argument('--imgsz', type=int, default=640,
                         help='输入图像尺寸')
     parser.add_argument('--batch', type=int, default=8,
                         help='batch size')
     parser.add_argument('--workers', type=int, default=8,
                         help='dataloader workers')
+    parser.add_argument('--seed', type=int, default=0,
+                        help='random seed')
     parser.add_argument('--project', type=str, default='',
                         help='训练输出根目录（可选）')
     parser.add_argument('--name', type=str, default='',
@@ -150,6 +181,24 @@ def parse_opt(known=False):
                         help='允许复用已有输出目录（默认关闭，避免 results.csv 追加污染）')
     parser.add_argument('--amp', action='store_true',
                         help='启用混合精度训练，降低显存占用')
+    parser.add_argument('--lr0', type=float, default=0.01,
+                        help='基础学习率，Scale-Routed Optimizer 会在此基础上分组缩放')
+    parser.add_argument('--lrf', type=float, default=0.01,
+                        help='最终学习率倍率')
+    parser.add_argument('--warmup_epochs', type=float, default=3.0,
+                        help='optimizer warmup epoch 数；refit 需显式校准，当前建议至少 1.0')
+    parser.add_argument('--warmup_momentum', type=float, default=0.8,
+                        help='optimizer warmup 初始 momentum')
+    parser.add_argument('--warmup_bias_lr', type=float, default=0.1,
+                        help='optimizer bias warmup 初始学习率；热启动建议设为 0')
+    parser.add_argument('--close_mosaic', type=int, default=10,
+                        help='最后 N 个 epoch 关闭 mosaic')
+    parser.add_argument('--mosaic', type=float, default=1.0,
+                        help='Mosaic 增强概率；USOD 极小目标消融可设为 0.0')
+    parser.add_argument('--scale', type=float, default=0.5,
+                        help='随机缩放幅度')
+    parser.add_argument('--translate', type=float, default=0.1,
+                        help='随机平移幅度')
 
     # A+B 策略参数
     parser.add_argument('--trainer_mode', type=str, default='full',
@@ -202,6 +251,16 @@ def parse_opt(known=False):
                         help='SSDS: tiny GT 在 P2 层的权重放大系数')
     parser.add_argument('--small_boost', type=float, default=1.3,
                         help='SSDS: small GT 在 P3 层的权重放大系数')
+    parser.add_argument('--ssds_p3_fallback', action='store_true',
+                        help='SSDS: 当 small GT 未被 TAL 分配到 P3 时，为最近 P3 anchor 补弱监督')
+    parser.add_argument('--ssds_p3_fallback_topk', type=int, default=1,
+                        help='SSDS: 每个 fallback GT 选择的 P3 anchor 数')
+    parser.add_argument('--ssds_p3_fallback_score', type=float, default=0.2,
+                        help='SSDS: P3 fallback 分类目标分数')
+    parser.add_argument('--ssds_p3_fallback_min_area', type=float, default=64.0,
+                        help='SSDS: P3 fallback 最小 GT 面积，允许 near-tiny 目标参与 P3 弱监督')
+    parser.add_argument('--ssds_p3_fallback_max_area', type=float, default=0.0,
+                        help='SSDS: P3 fallback 最大 GT 面积，0 表示使用 small_area_thr')
 
     opt = parser.parse_known_args()[0] if known else parser.parse_args()
     return opt

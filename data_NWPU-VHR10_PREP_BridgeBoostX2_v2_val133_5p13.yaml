@@ -1,0 +1,16 @@
+path: /share/home/u2415363072/5.13/ultralyticsPro--YOLO11/datasets/NWPU-VHR10-PREP-BridgeBoost-x2-v2-val133
+train: images/train
+val: /share/home/u2415363072/5.13/ultralyticsPro--YOLO11/datasets/NWPU-VHR10-PREP/images/val
+test: /share/home/u2415363072/5.13/ultralyticsPro--YOLO11/datasets/NWPU-VHR10-PREP/images/test
+nc: 10
+names:
+- airplane
+- baseball diamond
+- basketball court
+- bridge
+- ground track field
+- harbor
+- ship
+- storage tank
+- tennis court
+- vehicle

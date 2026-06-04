@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>PRR / CBS / LIR / C3k2_SSA 详细流程图</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #fff; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; padding: 30px 40px; }
+  h1 { text-align: center; font-size: 22px; color: #333; margin-bottom: 36px; }
+  .diagram-section { margin-bottom: 48px; page-break-inside: avoid; }
+  .diagram-title { font-size: 17px; font-weight: 700; color: #444; margin-bottom: 14px; padding-left: 4px; border-left: 4px solid #7c9edb; padding-left: 10px; }
+  .diagram-subtitle { font-size: 12px; color: #888; margin-bottom: 10px; padding-left: 18px; }
+  svg text { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+  /* Node styles */
+  .node-pink   { fill: #f4a0b0; stroke: #d4707e; stroke-width: 1.5; }
+  .node-green  { fill: #a8dba8; stroke: #6aab6a; stroke-width: 1.5; }
+  .node-yellow { fill: #f5d76e; stroke: #c9a83e; stroke-width: 1.5; }
+  .node-blue   { fill: #9dc3e6; stroke: #5a8ab5; stroke-width: 1.5; }
+  .node-purple { fill: #c5a3d9; stroke: #9070a8; stroke-width: 1.5; }
+  .node-orange { fill: #f4c280; stroke: #c49050; stroke-width: 1.5; }
+  .node-gray   { fill: #d0d0d0; stroke: #999;    stroke-width: 1.5; }
+  .node-white  { fill: #f0f0f0; stroke: #aaa;    stroke-width: 1.5; }
+  .node-red    { fill: #e88888; stroke: #b85858;  stroke-width: 1.5; }
+  .label { font-size: 11px; fill: #333; text-anchor: middle; dominant-baseline: central; font-weight: 600; }
+  .label-sm { font-size: 9.5px; fill: #555; text-anchor: middle; dominant-baseline: central; }
+  .label-xs { font-size: 8px; fill: #777; text-anchor: middle; dominant-baseline: central; }
+  .label-white { font-size: 11px; fill: #fff; text-anchor: middle; dominant-baseline: central; font-weight: 600; }
+  .arrow { fill: none; stroke: #666; stroke-width: 1.6; marker-end: url(#arrowhead); }
+  .arrow-thin { fill: none; stroke: #999; stroke-width: 1.2; marker-end: url(#arrowhead-sm); }
+  .arrow-skip { fill: none; stroke: #b07040; stroke-width: 1.4; stroke-dasharray: 5,3; marker-end: url(#arrowhead-skip); }
+  .arrow-add { fill: none; stroke: #c44; stroke-width: 1.6; marker-end: url(#arrowhead-add); }
+  .section-bg { fill: #f8f9fa; stroke: #e0e0e0; stroke-width: 1; rx: 10; }
+  .section-bg-pink { fill: #fef5f5; stroke: #f0d0d0; stroke-width: 1; rx: 10; }
+  .section-bg-green { fill: #f2faf2; stroke: #c8e8c8; stroke-width: 1; rx: 10; }
+  .section-bg-blue { fill: #f0f5fa; stroke: #c0d8ee; stroke-width: 1; rx: 10; }
+  .section-bg-yellow { fill: #fefcf0; stroke: #e8e0c0; stroke-width: 1; rx: 10; }
+  .section-label { font-size: 13px; fill: #666; font-weight: 700; }
+  .circle-op { fill: #fff; stroke: #888; stroke-width: 1.5; }
+  .circle-add { fill: #fff; stroke: #c44; stroke-width: 1.8; }
+  .plus-text { font-size: 14px; fill: #c44; text-anchor: middle; dominant-baseline: central; font-weight: 700; }
+  .multiply-text { font-size: 12px; fill: #888; text-anchor: middle; dominant-baseline: central; font-weight: 700; }
+  .io-label { font-size: 10px; fill: #999; text-anchor: middle; dominant-baseline: central; }
+</style>
+</head>
+<body>
+<h1>PRR / CBS / LIR / C3k2_SSA — Detailed Architecture Flowcharts</h1>
+
+<!-- Shared SVG defs -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#666"/></marker>
+    <marker id="arrowhead-sm" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0, 6 2, 0 4" fill="#999"/></marker>
+    <marker id="arrowhead-skip" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#b07040"/></marker>
+    <marker id="arrowhead-add" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#c44"/></marker>
+  </defs>
+</svg>
+
+<!-- ============ 1. PRR ============ -->
+<div class="diagram-section">
+  <div class="diagram-title">1. PRR — P2/P3 Refocus Resampling + MFFF</div>
+  <div class="diagram-subtitle">RefocusSingle (gridsample mode) → MFFF (Multi-Frequency Feature Fusion via FFT)</div>
+  <svg viewBox="0 0 960 520" width="960" height="520" xmlns="http://www.w3.org/2000/svg">
+
+    <!-- RefocusSingle section -->
+    <rect x="10" y="8" width="460" height="240" class="section-bg-pink"/>
+    <text x="24" y="28" class="section-label">RefocusSingle</text>
+
+    <!-- Input -->
+    <text x="30" y="130" class="io-label">Input</text>
+    <line x1="50" y1="130" x2="78" y2="130" class="arrow"/>
+
+    <!-- Split point -->
+    <circle cx="90" cy="130" r="5" fill="#888" stroke="#555" stroke-width="1.5"/>
+
+    <!-- Upper branch: HeatmapHead -->
+    <line x1="90" y1="125" x2="90" y2="65" class="arrow-thin"/>
+    <line x1="90" y1="65" x2="118" y2="65" class="arrow-thin"/>
+    <!-- DWConv3x3 -->
+    <rect x="120" y="48" width="70" height="34" rx="6" class="node-green"/>
+    <text x="155" y="60" class="label">DWConv</text>
+    <text x="155" y="73" class="label-xs">3×3, groups=C</text>
+    <line x1="190" y1="65" x2="204" y2="65" class="arrow-thin"/>
+    <!-- BN+SiLU -->
+    <rect x="206" y="50" width="46" height="30" rx="5" class="node-gray"/>
+    <text x="229" y="65" class="label-sm">BN+SiLU</text>
+    <line x1="252" y1="65" x2="266" y2="65" class="arrow-thin"/>
+    <!-- PWConv1x1 -->
+    <rect x="268" y="48" width="62" height="34" rx="6" class="node-blue"/>
+    <text x="299" y="60" class="label">PWConv</text>
+    <text x="299" y="73" class="label-xs">1×1 → C/4</text>
+    <line x1="330" y1="65" x2="344" y2="65" class="arrow-thin"/>
+    <!-- BN+SiLU -->
+    <rect x="346" y="50" width="46" height="30" rx="5" class="node-gray"/>
+    <text x="369" y="65" class="label-sm">BN+SiLU</text>
+    <line x1="392" y1="65" x2="406" y2="65" class="arrow-thin"/>
+    <!-- Conv1x1 + Sigmoid -->
+    <rect x="408" y="46" width="50" height="38" rx="6" class="node-yellow"/>
+    <text x="433" y="59" class="label-sm">Conv1×1</text>
+    <text x="433" y="73" class="label-xs">→ Sigmoid</text>
+    <!-- heatmap label -->
+    <text x="433" y="100" class="label-xs" fill="#b07040">heatmap (B,1,H,W)</text>
+
+    <!-- heatmap arrow down to GridSampleRefiner -->
+    <line x1="433" y1="84" x2="433" y2="170" class="arrow-thin"/>
+
+    <!-- Lower branch: GridSampleRefiner -->
+    <line x1="90" y1="135" x2="90" y2="185" class="arrow-thin"/>
+    <line x1="90" y1="185" x2="118" y2="185" class="arrow"/>
+
+    <!-- x * heatmap -->
+    <circle cx="130" cy="185" r="10" class="circle-op"/>
+    <text x="130" y="185" class="multiply-text">×</text>
+    <line x1="140" y1="185" x2="158" y2="185" class="arrow-thin"/>
+
+    <!-- DWConv3x3 -->
+    <rect x="160" y="168" width="64" height="34" rx="6" class="node-green"/>
+    <text x="192" y="180" class="label-sm">DWConv</text>
+    <text x="192" y="193" class="label-xs">3×3</text>
+    <line x1="224" y1="185" x2="238" y2="185" class="arrow-thin"/>
+    <!-- BN+SiLU -->
+    <rect x="240" y="170" width="46" height="30" rx="5" class="node-gray"/>
+    <text x="263" y="185" class="label-sm">BN+SiLU</text>
+    <line x1="286" y1="185" x2="300" y2="185" class="arrow-thin"/>
+    <!-- PWConv1x1 -->
+    <rect x="302" y="168" width="62" height="34" rx="6" class="node-blue"/>
+    <text x="333" y="180" class="label-sm">PWConv</text>
+    <text x="333" y="193" class="label-xs">1×1</text>
+    <line x1="364" y1="185" x2="378" y2="185" class="arrow-thin"/>
+    <!-- BN+SiLU -->
+    <rect x="380" y="170" width="46" height="30" rx="5" class="node-gray"/>
+    <text x="403" y="185" class="label-sm">BN+SiLU</text>
+    <!-- = enhanced -->
+
+    <!-- gamma * enhanced + x (skip connection) -->
+    <!-- Skip arrow from input -->
+    <path d="M 82,130 L 82,220 L 440,220" class="arrow-skip"/>
+    <!-- Add circle -->
+    <circle cx="450" cy="210" r="10" class="circle-add"/>
+    <text x="450" y="210" class="plus-text">+</text>
+    <line x1="426" y1="185" x2="440" y2="200" class="arrow-thin"/>
+    <line x1="450" y1="220" x2="450" y2="200" class="arrow-thin" style="stroke:#c44"/>
+
+    <!-- Output of RefocusSingle -->
+    <line x1="460" y1="210" x2="480" y2="210" class="arrow" style="stroke:#555;stroke-width:2"/>
+
+    <!-- GridSampleRefiner annotation (alternative mode) -->
+    <text x="240" y="230" class="label-xs" fill="#888">SoftRefocusEnhancer (mode=softmask)</text>
+    <text x="240" y="242" class="label-xs" fill="#888">GridSampleRefiner (mode=gridsample): offset_pred + grid_sample</text>
+
+    <!-- MFFF section -->
+    <rect x="10" y="268" width="950" height="220" class="section-bg-blue"/>
+    <text x="24" y="288" class="section-label">MFFF (Multi-Frequency Feature Fusion)</text>
+
+    <!-- Input from RefocusSingle -->
+    <text x="30" y="388" class="io-label">Input</text>
+    <line x1="50" y1="388" x2="78" y2="388" class="arrow"/>
+
+    <!-- cv1 Conv1x1 -->
+    <rect x="80" y="370" width="70" height="36" rx="6" class="node-pink"/>
+    <text x="115" y="383" class="label">cv1</text>
+    <text x="115" y="396" class="label-xs">Conv 1×1</text>
+    <line x1="150" y1="388" x2="170" y2="388" class="arrow"/>
+
+    <!-- Split -->
+    <polygon points="175,378 195,388 175,398" fill="#6a8fc4" stroke="#4a6fa4" stroke-width="1.5"/>
+    <text x="185" y="388" class="label-white" font-size="9">Split</text>
+
+    <!-- Upper branch: ok_branch (25% channels) -->
+    <line x1="195" y1="383" x2="195" y2="330" class="arrow-thin"/>
+    <line x1="195" y1="330" x2="220" y2="330" class="arrow"/>
+    <text x="208" y="348" class="label-xs" fill="#5a8ab5">c₁=25%</text>
+
+    <!-- ImprovedFFTKernel box (expanded for dual-path FCA) -->
+    <rect x="222" y="290" width="500" height="95" rx="8" fill="#eef4fa" stroke="#9dc3e6" stroke-width="1.5"/>
+    <text x="240" y="306" class="section-label" font-size="11" fill="#5a8ab5">ImprovedFFTKernel</text>
+
+    <!-- in_conv -->
+    <rect x="232" y="314" width="56" height="30" rx="5" class="node-pink"/>
+    <text x="260" y="325" class="label-xs">Conv1×1</text>
+    <text x="260" y="337" class="label-xs">+GELU</text>
+    <line x1="288" y1="329" x2="300" y2="329" class="arrow-thin"/>
+
+    <!-- FCA: dual-path parallel -->
+    <!-- Path A: FFT2D(out) -->
+    <line x1="300" y1="324" x2="300" y2="316" class="arrow-thin"/>
+    <rect x="302" y="310" width="52" height="24" rx="4" class="node-blue"/>
+    <text x="328" y="322" class="label-xs">FFT2D</text>
+    <line x1="354" y1="322" x2="370" y2="322" class="arrow-thin"/>
+
+    <!-- Path B: GAP + Conv1x1 = x_att -->
+    <line x1="300" y1="334" x2="300" y2="348" class="arrow-thin"/>
+    <rect x="302" y="340" width="52" height="24" rx="4" class="node-blue"/>
+    <text x="328" y="347" class="label-xs">GAP</text>
+    <text x="328" y="358" class="label-xs">+Conv1×1</text>
+    <line x1="354" y1="352" x2="365" y2="352" class="arrow-thin"/>
+
+    <!-- Multiply: x_att * FFT2D(out) -->
+    <circle cx="378" cy="329" r="9" class="circle-op"/>
+    <text x="378" y="329" class="multiply-text" font-size="9">×</text>
+    <line x1="365" y1="352" x2="373" y2="338" class="arrow-thin"/>
+    <line x1="387" y1="329" x2="399" y2="329" class="arrow-thin"/>
+
+    <!-- iFFT + abs -->
+    <rect x="401" y="316" width="52" height="26" rx="4" class="node-gray"/>
+    <text x="427" y="325" class="label-xs">iFFT2D</text>
+    <text x="427" y="336" class="label-xs">|abs|</text>
+    <line x1="453" y1="329" x2="467" y2="329" class="arrow-thin"/>
+
+    <!-- SCA multi-scale (on x_fca) -->
+    <rect x="469" y="316" width="72" height="26" rx="4" class="node-green"/>
+    <text x="505" y="325" class="label-xs">Conv 1+3+5</text>
+    <text x="505" y="336" class="label-xs">Multi-Scale</text>
+    <line x1="541" y1="329" x2="555" y2="329" class="arrow-thin"/>
+
+    <!-- Channel Attention from x_att (NOT from SCA) -->
+    <rect x="370" y="358" width="56" height="22" rx="4" class="node-yellow"/>
+    <text x="398" y="369" class="label-xs">Ch Attn</text>
+    <line x1="365" y1="352" x2="370" y2="365" class="arrow-thin" style="stroke-dasharray:3,2"/>
+    <!-- multiply channel weights onto SCA output -->
+    <circle cx="565" cy="340" r="8" class="circle-op"/>
+    <text x="565" y="340" class="multiply-text" font-size="9">×</text>
+    <line x1="426" y1="369" x2="557" y2="344" class="arrow-thin" style="stroke-dasharray:3,2"/>
+    <line x1="541" y1="329" x2="557" y2="335" class="arrow-thin"/>
+
+    <!-- FFM (freq gate) -->
+    <line x1="573" y1="340" x2="585" y2="340" class="arrow-thin"/>
+    <rect x="587" y="328" width="42" height="24" rx="4" class="node-purple"/>
+    <text x="608" y="336" class="label-xs">FFM</text>
+    <text x="608" y="347" class="label-xs">gate</text>
+    <line x1="629" y1="340" x2="650" y2="340" class="arrow-thin"/>
+
+    <!-- Final fusion: 4-term sum -->
+    <!-- x skip -->
+    <path d="M 228,329 L 228,296 L 670,296 L 670,330" class="arrow-skip"/>
+    <!-- dw_33(out): 31x31 DWConv -->
+    <rect x="550" y="370" width="56" height="20" rx="4" class="node-orange"/>
+    <text x="578" y="380" class="label-xs">DW 31×31</text>
+    <!-- dw_11(out): 1x1 DWConv -->
+    <rect x="612" y="370" width="46" height="20" rx="4" class="node-orange"/>
+    <text x="635" y="380" class="label-xs">DW 1×1</text>
+    <line x1="288" y1="338" x2="296" y2="338" class="arrow-thin" style="stroke-dasharray:3,2"/>
+    <path d="M 296,338 L 296,380 L 550,380" class="arrow-thin" style="stroke-dasharray:3,2"/>
+    <path d="M 296,338 L 296,380 L 612,380" class="arrow-thin" style="stroke-dasharray:3,2"/>
+
+    <!-- 4-term add -->
+    <circle cx="672" cy="340" r="10" class="circle-add"/>
+    <text x="672" y="340" class="plus-text" font-size="10">Σ4</text>
+    <line x1="606" y1="380" x2="665" y2="348" class="arrow-thin"/>
+    <line x1="635" y1="380" x2="665" y2="348" class="arrow-thin"/>
+
+    <!-- ReLU -->
+    <line x1="682" y1="340" x2="694" y2="340" class="arrow-thin"/>
+    <rect x="696" y="328" width="36" height="24" rx="4" class="node-gray"/>
+    <text x="714" y="340" class="label-xs">ReLU</text>
+
+    <!-- out_conv -->
+    <line x1="732" y1="340" x2="744" y2="340" class="arrow-thin"/>
+    <rect x="746" y="328" width="46" height="24" rx="4" class="node-pink"/>
+    <text x="769" y="340" class="label-xs">Conv1×1</text>
+
+    <!-- output of FFT kernel -->
+    <line x1="792" y1="340" x2="820" y2="340" class="arrow-thin"/>
+
+    <!-- Lower branch: identity -->
+    <line x1="195" y1="393" x2="195" y2="450" class="arrow-thin"/>
+    <text x="208" y="425" class="label-xs" fill="#888">c₂=75%</text>
+    <text x="400" y="455" class="label-xs" fill="#888">identity (pass-through)</text>
+    <line x1="195" y1="450" x2="820" y2="450" class="arrow-thin" style="stroke-dasharray:4,3"/>
+
+    <!-- Concat -->
+    <rect x="825" y="328" width="36" height="26" rx="5" class="node-yellow"/>
+    <text x="843" y="341" class="label-sm">Cat</text>
+    <!-- identity up to cat -->
+    <line x1="820" y1="340" x2="825" y2="340" class="arrow-thin"/>
+    <line x1="820" y1="450" x2="843" y2="450" class="arrow-thin"/>
+    <line x1="843" y1="450" x2="843" y2="354" class="arrow-thin"/>
+
+    <!-- cv2 -->
+    <line x1="861" y1="340" x2="880" y2="340" class="arrow"/>
+    <rect x="882" y="322" width="60" height="36" rx="6" class="node-pink"/>
+    <text x="912" y="335" class="label">cv2</text>
+    <text x="912" y="348" class="label-xs">Conv 1×1</text>
+    <line x1="942" y1="340" x2="950" y2="340" class="arrow" style="stroke:#555;stroke-width:2"/>
+
+    <!-- Connection arrow from RefocusSingle to MFFF -->
+    <line x1="470" y1="210" x2="470" y2="268" class="arrow" style="stroke:#555;stroke-width:2"/>
+  </svg>
+</div>
+
+<!-- ============ 2. CBS ============ -->
+<div class="diagram-section">
+  <div class="diagram-title">2. CBS — Conv + BatchNorm + SiLU</div>
+  <div class="diagram-subtitle">Standard convolution block (class Conv in Ultralytics)</div>
+  <svg viewBox="0 0 600 90" width="600" height="90" xmlns="http://www.w3.org/2000/svg">
+    <!-- Input -->
+    <text x="20" y="48" class="io-label">Input</text>
+    <line x1="50" y1="45" x2="88" y2="45" class="arrow"/>
+
+    <!-- Conv2d -->
+    <rect x="90" y="24" width="140" height="42" rx="8" class="node-pink"/>
+    <text x="160" y="39" class="label">Conv2d</text>
+    <text x="160" y="54" class="label-xs">c₁→c₂, k, s, pad, bias=False</text>
+    <line x1="230" y1="45" x2="268" y2="45" class="arrow"/>
+
+    <!-- BatchNorm2d -->
+    <rect x="270" y="24" width="120" height="42" rx="8" class="node-green"/>
+    <text x="330" y="39" class="label">BatchNorm2d</text>
+    <text x="330" y="54" class="label-xs">c₂</text>
+    <line x1="390" y1="45" x2="428" y2="45" class="arrow"/>
+
+    <!-- SiLU -->
+    <rect x="430" y="24" width="80" height="42" rx="8" class="node-yellow"/>
+    <text x="470" y="45" class="label">SiLU</text>
+    <line x1="510" y1="45" x2="550" y2="45" class="arrow" style="stroke:#555;stroke-width:2"/>
+    <text x="570" y="48" class="io-label">Output</text>
+  </svg>
+</div>
+
+<!-- ============ 3. LIR ============ -->
+<div class="diagram-section">
+  <div class="diagram-title">3. LIR — TopBasicLayer → LAF_h → Injection → RepBlock</div>
+  <div class="diagram-subtitle">Local-Inject-RepBlock pipeline (Transformer attention + global-local injection + RepVGG stacking)</div>
+  <svg viewBox="0 0 960 580" width="960" height="580" xmlns="http://www.w3.org/2000/svg">
+
+    <!-- Top-level flow -->
+    <text x="20" y="30" class="io-label">Input</text>
+    <line x1="50" y1="27" x2="78" y2="27" class="arrow"/>
+
+    <!-- TopBasicLayer -->
+    <rect x="80" y="8" width="180" height="38" rx="7" class="node-blue"/>
+    <text x="170" y="22" class="label">TopBasicLayer</text>
+    <text x="170" y="36" class="label-xs">Transformer Attn × depths</text>
+    <line x1="260" y1="27" x2="290" y2="27" class="arrow"/>
+
+    <!-- Conv1x1 -->
+    <rect x="292" y="10" width="62" height="34" rx="6" class="node-pink"/>
+    <text x="323" y="27" class="label-sm">Conv1×1</text>
+    <line x1="354" y1="27" x2="384" y2="27" class="arrow"/>
+
+    <!-- LAF_h -->
+    <rect x="386" y="8" width="100" height="38" rx="7" class="node-green"/>
+    <text x="436" y="22" class="label">LAF_h</text>
+    <text x="436" y="36" class="label-xs">Pool + Cat</text>
+    <line x1="486" y1="27" x2="516" y2="27" class="arrow"/>
+
+    <!-- Injection -->
+    <rect x="518" y="8" width="140" height="38" rx="7" class="node-purple"/>
+    <text x="588" y="22" class="label">Injection</text>
+    <text x="588" y="36" class="label-xs">MultiSum_Auto_pool</text>
+    <line x1="658" y1="27" x2="688" y2="27" class="arrow"/>
+
+    <!-- RepBlock -->
+    <rect x="690" y="8" width="140" height="38" rx="7" class="node-orange"/>
+    <text x="760" y="22" class="label">RepBlock</text>
+    <text x="760" y="36" class="label-xs">RepVGGBlock × n</text>
+    <line x1="830" y1="27" x2="870" y2="27" class="arrow" style="stroke:#555;stroke-width:2"/>
+    <text x="900" y="30" class="io-label">Output</text>
+
+    <!-- Global input to LAF_h and Injection -->
+    <path d="M 65,27 L 65,55 L 400,55 L 400,46" class="arrow-skip" style="stroke-dasharray:4,2"/>
+    <text x="230" y="52" class="label-xs" fill="#b07040">x₁ (to LAF_h)</text>
+    <path d="M 436,46 L 436,62 L 540,62 L 540,46" class="arrow-skip" style="stroke-dasharray:4,2"/>
+    <text x="490" y="59" class="label-xs" fill="#b07040">x₂ (global)</text>
+
+    <!-- ============ TopBasicLayer Detail ============ -->
+    <rect x="10" y="85" width="940" height="210" class="section-bg-blue"/>
+    <text x="24" y="105" class="section-label">TopBasicLayer 内部结构</text>
+
+    <!-- top_Block repeated -->
+    <text x="30" y="175" class="io-label">x</text>
+    <line x1="44" y1="172" x2="72" y2="172" class="arrow"/>
+
+    <!-- top_Block box -->
+    <rect x="74" y="120" width="570" height="105" rx="8" fill="#e8f0f8" stroke="#9dc3e6" stroke-width="1.5"/>
+    <text x="90" y="138" class="section-label" font-size="11" fill="#5a8ab5">top_Block × depths</text>
+
+    <!-- Attention -->
+    <rect x="90" y="148" width="220" height="62" rx="6" class="node-blue"/>
+    <text x="200" y="163" class="label">Attention</text>
+    <text x="200" y="178" class="label-xs">to_q / to_k / to_v (Conv 1×1)</text>
+    <text x="200" y="191" class="label-xs">SR pool (if H×W>4096) → Q·K^T → softmax → ·V</text>
+    <text x="200" y="204" class="label-xs">→ ReLU6 → Conv(dh→dim) → proj</text>
+
+    <!-- Add residual 1 -->
+    <circle cx="330" cy="172" r="9" class="circle-add"/>
+    <text x="330" y="172" class="plus-text">+</text>
+    <line x1="310" y1="172" x2="321" y2="172" class="arrow-thin"/>
+    <!-- Skip connection -->
+    <path d="M 80,172 L 80,145 L 330,145 L 330,163" class="arrow-skip"/>
+
+    <line x1="339" y1="172" x2="365" y2="172" class="arrow-thin"/>
+
+    <!-- Mlp -->
+    <rect x="367" y="148" width="180" height="62" rx="6" class="node-green"/>
+    <text x="457" y="163" class="label">Mlp</text>
+    <text x="457" y="178" class="label-xs">fc1 (Conv1×1) → DWConv3×3</text>
+    <text x="457" y="191" class="label-xs">→ ReLU6 → Dropout</text>
+    <text x="457" y="204" class="label-xs">→ fc2 (Conv1×1) → Dropout</text>
+
+    <!-- Add residual 2 -->
+    <circle cx="567" cy="172" r="9" class="circle-add"/>
+    <text x="567" y="172" class="plus-text">+</text>
+    <line x1="547" y1="172" x2="558" y2="172" class="arrow-thin"/>
+    <path d="M 339,172 L 339,145 L 567,145 L 567,163" class="arrow-skip"/>
+
+    <line x1="576" y1="172" x2="620" y2="172" class="arrow-thin"/>
+
+    <!-- Conv1x1_n -->
+    <rect x="660" y="155" width="80" height="34" rx="6" class="node-pink"/>
+    <text x="700" y="167" class="label-sm">Conv 1×1</text>
+    <text x="700" y="180" class="label-xs">(conv_1x1_n)</text>
+    <line x1="644" y1="172" x2="660" y2="172" class="arrow-thin"/>
+    <line x1="740" y1="172" x2="780" y2="172" class="arrow"/>
+    <text x="810" y="175" class="io-label">output</text>
+
+    <!-- note about SR -->
+    <text x="350" y="240" class="label-xs" fill="#888">SR_THRESHOLD=4096: when H×W > 4096, K/V are spatially reduced by SR_RATIO=4 (AvgPool2d)</text>
+    <text x="350" y="254" class="label-xs" fill="#888">P2 (80×80=6400): SR active → K/V from 80×80 to 20×20.   P3 (40×40=1600): SR inactive.</text>
+    <text x="350" y="268" class="label-xs" fill="#c44">⚠ scale = key_dim^{-0.5} defined but NOT applied at line 714: attn = matmul(qq,kk)  (missing * self.scale)</text>
+
+    <!-- ============ LAF_h Detail ============ -->
+    <rect x="10" y="310" width="460" height="110" class="section-bg-green"/>
+    <text x="24" y="330" class="section-label">LAF_h 内部结构</text>
+
+    <text x="30" y="380" class="io-label">[x₁, x₂]</text>
+
+    <!-- x1 path -->
+    <line x1="68" y1="365" x2="100" y2="365" class="arrow-thin"/>
+    <rect x="102" y="348" width="130" height="34" rx="6" class="node-green"/>
+    <text x="167" y="360" class="label-sm">AdaptiveAvgPool2d</text>
+    <text x="167" y="373" class="label-xs">output_size = x₂'s (H,W)</text>
+    <line x1="232" y1="365" x2="265" y2="365" class="arrow-thin"/>
+
+    <!-- x2 path -->
+    <line x1="68" y1="395" x2="265" y2="395" class="arrow-thin" style="stroke-dasharray:4,2"/>
+    <text x="165" y="402" class="label-xs" fill="#888">pass-through</text>
+
+    <!-- Cat -->
+    <rect x="267" y="362" width="60" height="30" rx="5" class="node-yellow"/>
+    <text x="297" y="377" class="label">Cat</text>
+    <text x="297" y="390" class="label-xs">dim=1</text>
+
+    <line x1="265" y1="365" x2="267" y2="375" class="arrow-thin"/>
+    <line x1="265" y1="395" x2="275" y2="392" class="arrow-thin"/>
+
+    <line x1="327" y1="377" x2="380" y2="377" class="arrow"/>
+    <text x="400" y="380" class="io-label">(C₁+C₂, H₂, W₂)</text>
+
+    <!-- ============ Injection Detail ============ -->
+    <rect x="490" y="310" width="460" height="110" class="section-bg-yellow"/>
+    <text x="504" y="330" class="section-label">InjectionMultiSum_Auto_pool 内部结构</text>
+
+    <!-- x_l -->
+    <text x="508" y="370" class="io-label">x_l</text>
+    <line x1="528" y1="367" x2="555" y2="367" class="arrow-thin"/>
+    <rect x="557" y="350" width="90" height="34" rx="5" class="node-pink"/>
+    <text x="602" y="362" class="label-sm">local_embed</text>
+    <text x="602" y="375" class="label-xs">Conv1×1</text>
+    <line x1="647" y1="367" x2="680" y2="367" class="arrow-thin"/>
+
+    <!-- x_g -->
+    <text x="508" y="400" class="io-label">x_g</text>
+    <line x1="528" y1="397" x2="555" y2="397" class="arrow-thin"/>
+    <rect x="557" y="385" width="90" height="28" rx="5" class="node-blue"/>
+    <text x="602" y="399" class="label-sm">global_act + embed</text>
+    <line x1="647" y1="399" x2="670" y2="399" class="arrow-thin"/>
+
+    <!-- resize (h_sigmoid only if not use_pool) -->
+    <rect x="672" y="383" width="70" height="32" rx="5" class="node-gray"/>
+    <text x="707" y="394" class="label-xs">resize</text>
+    <text x="707" y="407" class="label-xs">(σ if no pool)</text>
+    <line x1="742" y1="399" x2="770" y2="399" class="arrow-thin"/>
+
+    <!-- multiply -->
+    <circle cx="782" cy="380" r="9" class="circle-op"/>
+    <text x="782" y="380" class="multiply-text">×</text>
+    <line x1="680" y1="367" x2="773" y2="375" class="arrow-thin"/>
+    <line x1="791" y1="380" x2="815" y2="380" class="arrow-thin"/>
+
+    <!-- add global_feat -->
+    <circle cx="827" cy="390" r="9" class="circle-add"/>
+    <text x="827" y="390" class="plus-text">+</text>
+    <path d="M 742,399 L 760,399 L 760,410 L 827,410 L 827,399" class="arrow-thin" style="stroke:#c44"/>
+    <line x1="815" y1="380" x2="822" y2="385" class="arrow-thin"/>
+
+    <line x1="836" y1="390" x2="880" y2="390" class="arrow"/>
+    <text x="910" y="393" class="io-label">output</text>
+    <text x="510" y="414" class="label-xs" fill="#888">use_pool (H_l &lt; H_g): AvgPool directly, no h_sigmoid.  else: h_sigmoid + bilinear interpolate.</text>
+
+    <!-- ============ RepBlock Detail ============ -->
+    <rect x="10" y="440" width="940" height="130" class="section-bg-pink"/>
+    <text x="24" y="460" class="section-label">RepBlock / RepVGGBlock 内部结构</text>
+
+    <text x="30" y="520" class="io-label">x</text>
+    <line x1="44" y1="517" x2="72" y2="517" class="arrow"/>
+
+    <!-- RepVGGBlock box -->
+    <rect x="74" y="475" width="480" height="85" rx="8" fill="#fde8e0" stroke="#f4c280" stroke-width="1.5"/>
+    <text x="90" y="493" class="section-label" font-size="11" fill="#c49050">RepVGGBlock</text>
+
+    <!-- 3 branches -->
+    <!-- rbr_dense -->
+    <line x1="80" y1="517" x2="110" y2="500" class="arrow-thin"/>
+    <rect x="112" y="495" width="100" height="28" rx="5" class="node-pink"/>
+    <text x="162" y="504" class="label-xs">rbr_dense</text>
+    <text x="162" y="516" class="label-xs">Conv3×3 + BN</text>
+
+    <!-- rbr_1x1 -->
+    <line x1="80" y1="517" x2="110" y2="527" class="arrow-thin"/>
+    <rect x="112" y="525" width="100" height="28" rx="5" class="node-blue"/>
+    <text x="162" y="534" class="label-xs">rbr_1x1</text>
+    <text x="162" y="546" class="label-xs">Conv1×1 + BN</text>
+
+    <!-- rbr_identity -->
+    <line x1="80" y1="517" x2="110" y2="548" class="arrow-thin"/>
+    <rect x="230" y="495" width="80" height="28" rx="5" class="node-gray"/>
+    <text x="270" y="504" class="label-xs">rbr_identity</text>
+    <text x="270" y="516" class="label-xs">BN (if C_in=C_out)</text>
+
+    <!-- Sum -->
+    <circle cx="340" cy="520" r="10" class="circle-add"/>
+    <text x="340" y="520" class="plus-text">Σ</text>
+    <line x1="212" y1="509" x2="330" y2="516" class="arrow-thin"/>
+    <line x1="212" y1="539" x2="330" y2="524" class="arrow-thin"/>
+    <line x1="310" y1="509" x2="330" y2="516" class="arrow-thin"/>
+
+    <line x1="350" y1="520" x2="380" y2="520" class="arrow-thin"/>
+
+    <!-- SiLU -->
+    <rect x="382" y="503" width="60" height="34" rx="6" class="node-yellow"/>
+    <text x="412" y="520" class="label">SiLU</text>
+
+    <line x1="442" y1="520" x2="480" y2="520" class="arrow-thin"/>
+    <text x="490" y="514" class="label-xs" fill="#c49050">×1</text>
+
+    <!-- Repeat notation -->
+    <rect x="500" y="498" width="48" height="38" rx="6" fill="#fde8e0" stroke="#c49050" stroke-width="1.5" stroke-dasharray="4,2"/>
+    <text x="524" y="512" class="label-sm">× n</text>
+    <text x="524" y="526" class="label-xs">RepVGG</text>
+
+    <line x1="548" y1="517" x2="600" y2="517" class="arrow"/>
+
+    <!-- deploy note -->
+    <text x="620" y="510" class="label-xs" fill="#888">Deploy mode: 3 branches fused into single Conv3×3 (reparam)</text>
+    <text x="620" y="524" class="label-xs" fill="#888">RepBlock: conv1 (first RepVGG) + block (n-1 × RepVGG)</text>
+    <text x="620" y="538" class="label-xs" fill="#888">LiteD1R2: P2/P3 n=2 (actual 1), P4 n=2 (actual 1, after scale)</text>
+  </svg>
+</div>
+
+<!-- ============ 4. C3k2_SSA ============ -->
+<div class="diagram-section">
+  <div class="diagram-title">4. C3k2_SSA — C3k2 + Sobel-SAConv Augmentation</div>
+  <div class="diagram-subtitle">CSP Bottleneck with 3 parallel branches: C2f main + Sobel edge + LightSAConv context</div>
+  <svg viewBox="0 0 960 620" width="960" height="620" xmlns="http://www.w3.org/2000/svg">
+
+    <!-- Main input -->
+    <text x="20" y="48" class="io-label">Input</text>
+    <line x1="50" y1="45" x2="78" y2="45" class="arrow" style="stroke:#555;stroke-width:2"/>
+
+    <!-- Split into 3 branches -->
+    <circle cx="90" cy="45" r="5" fill="#888" stroke="#555" stroke-width="1.5"/>
+
+    <!-- ============ Branch 1: C2f Main (upper) ============ -->
+    <rect x="10" y="68" width="560" height="190" class="section-bg-pink"/>
+    <text x="24" y="86" class="section-label">C2f Main Branch</text>
+
+    <!-- cv1 -->
+    <line x1="90" y1="40" x2="90" y2="110" class="arrow-thin"/>
+    <line x1="90" y1="110" x2="110" y2="110" class="arrow"/>
+    <rect x="112" y="93" width="80" height="34" rx="6" class="node-pink"/>
+    <text x="152" y="105" class="label">cv1</text>
+    <text x="152" y="118" class="label-xs">Conv 1×1 → 2c</text>
+    <line x1="192" y1="110" x2="215" y2="110" class="arrow"/>
+
+    <!-- Split -->
+    <polygon points="218,100 238,110 218,120" fill="#6a8fc4" stroke="#4a6fa4" stroke-width="1.5"/>
+    <text x="228" y="110" class="label-white" font-size="8">S</text>
+
+    <!-- Branch a (upper, skip) -->
+    <line x1="238" y1="105" x2="238" y2="95" class="arrow-thin"/>
+    <line x1="238" y1="95" x2="430" y2="95" class="arrow-thin" style="stroke-dasharray:4,2"/>
+    <text x="335" y="90" class="label-xs" fill="#888">a (skip)</text>
+
+    <!-- Branch b (lower, through Bottleneck) -->
+    <line x1="238" y1="115" x2="238" y2="140" class="arrow-thin"/>
+    <line x1="238" y1="140" x2="260" y2="140" class="arrow"/>
+
+    <!-- Bottleneck_1 -->
+    <rect x="262" y="123" width="80" height="34" rx="6" class="node-green"/>
+    <text x="302" y="135" class="label-sm">Bottleneck</text>
+    <text x="302" y="148" class="label-xs">Conv3×3→Conv3×3</text>
+    <line x1="342" y1="140" x2="360" y2="140" class="arrow-thin"/>
+
+    <!-- ... notation -->
+    <text x="370" y="140" class="label-xs">...</text>
+    <line x1="384" y1="140" x2="400" y2="140" class="arrow-thin"/>
+
+    <!-- Bottleneck_n -->
+    <rect x="402" y="123" width="80" height="34" rx="6" class="node-green"/>
+    <text x="442" y="135" class="label-sm">Bottleneck</text>
+    <text x="442" y="148" class="label-xs">+ shortcut</text>
+
+    <line x1="482" y1="140" x2="495" y2="140" class="arrow-thin"/>
+
+    <!-- Concat -->
+    <line x1="430" y1="95" x2="430" y2="160" class="arrow-thin"/>
+    <line x1="495" y1="140" x2="505" y2="155" class="arrow-thin"/>
+
+    <rect x="498" y="150" width="55" height="28" rx="5" class="node-yellow"/>
+    <text x="525" y="164" class="label-sm">Cat</text>
+    <line x1="488" y1="140" x2="498" y2="158" class="arrow-thin"/>
+
+    <line x1="553" y1="164" x2="575" y2="164" class="arrow"/>
+
+    <!-- cv2 -->
+    <rect x="577" y="147" width="80" height="34" rx="6" class="node-pink"/>
+    <text x="617" y="159" class="label">cv2</text>
+    <text x="617" y="172" class="label-xs">Conv 1×1 → c₂</text>
+
+    <!-- y_main output -->
+    <line x1="657" y1="164" x2="690" y2="164" class="arrow" style="stroke:#555;stroke-width:2"/>
+    <text x="690" y="158" class="io-label">y_main</text>
+
+    <!-- Bottleneck internal -->
+    <text x="120" y="200" class="label-xs" fill="#888">Bottleneck: cv1 (Conv3×3) → cv2 (Conv3×3) → + shortcut (if c₁=c₂)</text>
+    <text x="120" y="214" class="label-xs" fill="#888">C2f: c = int(c₂ × 0.5),  cv1: c₁→2c,  cv2: (2+n)×c → c₂</text>
+
+    <!-- ============ Branch 2: Sobel (middle) ============ -->
+    <rect x="10" y="275" width="560" height="120" class="section-bg-green"/>
+    <text x="24" y="293" class="section-label">Sobel Edge Branch</text>
+
+    <line x1="90" y1="50" x2="90" y2="320" class="arrow-thin"/>
+    <line x1="90" y1="320" x2="115" y2="320" class="arrow"/>
+
+    <!-- Sobel X -->
+    <rect x="117" y="303" width="100" height="34" rx="6" class="node-green"/>
+    <text x="167" y="315" class="label-sm">Sobel X</text>
+    <text x="167" y="328" class="label-xs">DWConv, fixed Gx</text>
+    <line x1="217" y1="320" x2="235" y2="320" class="arrow-thin"/>
+    <rect x="237" y="306" width="40" height="28" rx="4" class="node-gray"/>
+    <text x="257" y="320" class="label-sm">|abs|</text>
+    <line x1="277" y1="320" x2="300" y2="320" class="arrow-thin"/>
+
+    <!-- Add -->
+    <circle cx="312" cy="330" r="9" class="circle-add"/>
+    <text x="312" y="330" class="plus-text">+</text>
+    <line x1="300" y1="320" x2="306" y2="325" class="arrow-thin"/>
+
+    <!-- Sobel Y -->
+    <rect x="117" y="343" width="100" height="34" rx="6" class="node-green"/>
+    <text x="167" y="355" class="label-sm">Sobel Y</text>
+    <text x="167" y="368" class="label-xs">DWConv, fixed Gy</text>
+    <line x1="217" y1="360" x2="235" y2="360" class="arrow-thin"/>
+    <rect x="237" y="346" width="40" height="28" rx="4" class="node-gray"/>
+    <text x="257" y="360" class="label-sm">|abs|</text>
+    <line x1="277" y1="360" x2="306" y2="335" class="arrow-thin"/>
+
+    <line x1="321" y1="330" x2="355" y2="330" class="arrow"/>
+
+    <!-- sobel_proj -->
+    <rect x="357" y="313" width="90" height="34" rx="6" class="node-blue"/>
+    <text x="402" y="325" class="label-sm">sobel_proj</text>
+    <text x="402" y="338" class="label-xs">Conv 1×1 → c₂</text>
+    <line x1="447" y1="330" x2="490" y2="330" class="arrow"/>
+    <text x="500" y="324" class="io-label">sobel_out</text>
+
+    <text x="120" y="384" class="label-xs" fill="#888">Sobel kernels: depthwise (groups=C), non-persistent buffer, AMP dtype-aware</text>
+
+    <!-- ============ Branch 3: LightSAConv (lower) ============ -->
+    <rect x="10" y="410" width="660" height="200" class="section-bg-yellow"/>
+    <text x="24" y="428" class="section-label">LightSAConv (Switchable Atrous Convolution)</text>
+
+    <line x1="90" y1="50" x2="90" y2="460" class="arrow-thin" style="stroke-dasharray:4,2"/>
+    <line x1="90" y1="460" x2="115" y2="460" class="arrow"/>
+
+    <!-- pre_context: x + pre_context(GAP(x)) -->
+    <rect x="117" y="443" width="90" height="34" rx="6" class="node-blue"/>
+    <text x="162" y="453" class="label-xs">GAP →</text>
+    <text x="162" y="466" class="label-xs">pre_context 1×1</text>
+    <line x1="207" y1="460" x2="225" y2="460" class="arrow-thin"/>
+    <circle cx="237" cy="460" r="9" class="circle-add"/>
+    <text x="237" y="460" class="plus-text">+</text>
+    <path d="M 112,460 L 112,440 L 237,440 L 237,451" class="arrow-skip"/>
+    <line x1="246" y1="460" x2="270" y2="460" class="arrow-thin"/>
+
+    <!-- Switch computation -->
+    <rect x="272" y="443" width="100" height="34" rx="6" class="node-gray"/>
+    <text x="322" y="453" class="label-xs">AvgPool(5,1,2)</text>
+    <text x="322" y="466" class="label-xs">→ Conv(c→1) → σ</text>
+    <line x1="372" y1="460" x2="395" y2="460" class="arrow-thin"/>
+    <text x="386" y="452" class="label-xs" fill="#888">switch</text>
+
+    <!-- Two branches -->
+    <!-- small (d=1) -->
+    <line x1="395" y1="455" x2="395" y2="440" class="arrow-thin"/>
+    <rect x="397" y="423" width="90" height="28" rx="5" class="node-pink"/>
+    <text x="442" y="432" class="label-xs">small Conv</text>
+    <text x="442" y="444" class="label-xs">3×3, dilate=1</text>
+
+    <!-- large (d=3) -->
+    <line x1="395" y1="465" x2="395" y2="480" class="arrow-thin"/>
+    <rect x="397" y="473" width="90" height="28" rx="5" class="node-orange"/>
+    <text x="442" y="482" class="label-xs">large Conv</text>
+    <text x="442" y="494" class="label-xs">3×3, dilate=3</text>
+
+    <!-- switch * small + (1-switch) * large -->
+    <circle cx="510" cy="450" r="9" class="circle-op"/>
+    <text x="510" y="450" class="multiply-text" font-size="9">w·s</text>
+    <line x1="487" y1="437" x2="501" y2="446" class="arrow-thin"/>
+
+    <circle cx="510" cy="487" r="9" class="circle-op"/>
+    <text x="510" y="487" class="multiply-text" font-size="9">(1-w)·l</text>
+    <line x1="487" y1="487" x2="501" y2="487" class="arrow-thin"/>
+
+    <!-- Sum -->
+    <circle cx="535" cy="468" r="9" class="circle-add"/>
+    <text x="535" y="468" class="plus-text">+</text>
+    <line x1="519" y1="450" x2="528" y2="462" class="arrow-thin"/>
+    <line x1="519" y1="487" x2="528" y2="474" class="arrow-thin"/>
+
+    <line x1="544" y1="468" x2="565" y2="468" class="arrow-thin"/>
+
+    <!-- BN + SiLU -->
+    <rect x="567" y="451" width="62" height="34" rx="6" class="node-green"/>
+    <text x="598" y="463" class="label-sm">BN</text>
+    <text x="598" y="476" class="label-xs">+ SiLU</text>
+    <line x1="629" y1="468" x2="650" y2="468" class="arrow-thin"/>
+
+    <!-- post_context -->
+    <circle cx="662" cy="468" r="9" class="circle-add"/>
+    <text x="662" y="468" class="plus-text">+</text>
+    <path d="M 635,468 L 635,498 L 662,498 L 662,477" class="arrow-skip"/>
+    <text x="645" y="500" class="label-xs" fill="#b07040">post_context(GAP)</text>
+
+    <line x1="671" y1="468" x2="710" y2="468" class="arrow"/>
+    <text x="720" y="462" class="io-label">saconv_out</text>
+
+    <!-- ============ SSA Fusion ============ -->
+    <rect x="580" y="140" width="370" height="200" class="section-bg"/>
+    <text x="594" y="158" class="section-label">SSA Fusion</text>
+
+    <!-- y_main comes in -->
+    <line x1="690" y1="164" x2="720" y2="164" class="arrow-thin"/>
+    <text x="715" y="175" class="label-xs">y_main</text>
+
+    <!-- sobel_out comes in -->
+    <path d="M 510,330 L 560,330 L 560,200 L 720,200" class="arrow-thin"/>
+    <text x="715" y="210" class="label-xs">sobel_out</text>
+
+    <!-- saconv_out comes in -->
+    <path d="M 730,468 L 750,468 L 750,240 L 720,240" class="arrow-thin"/>
+    <text x="715" y="250" class="label-xs">saconv_out</text>
+
+    <!-- Concat all 3 -->
+    <rect x="730" y="178" width="60" height="80" rx="6" class="node-yellow"/>
+    <text x="760" y="210" class="label">Cat</text>
+    <text x="760" y="224" class="label-xs">dim=1</text>
+    <text x="760" y="240" class="label-xs">c₂ × 3</text>
+
+    <line x1="720" y1="164" x2="730" y2="195" class="arrow-thin"/>
+    <line x1="720" y1="200" x2="730" y2="215" class="arrow-thin"/>
+    <line x1="720" y1="240" x2="730" y2="240" class="arrow-thin"/>
+
+    <!-- fuse Conv1x1 -->
+    <line x1="790" y1="218" x2="820" y2="218" class="arrow"/>
+    <rect x="822" y="198" width="100" height="40" rx="7" class="node-pink"/>
+    <text x="872" y="212" class="label">fuse</text>
+    <text x="872" y="228" class="label-xs">Conv 1×1, c₂×3→c₂</text>
+
+    <line x1="922" y1="218" x2="940" y2="218" class="arrow" style="stroke:#555;stroke-width:2"/>
+    <text x="945" y="215" class="io-label" text-anchor="start">Out</text>
+
+    <!-- SSA annotation -->
+    <text x="600" y="300" class="label-xs" fill="#888">SSA class: forward(x, y_main) → cat([y_main, sobel, saconv]) → fuse</text>
+    <text x="600" y="314" class="label-xs" fill="#888">C3k2 with ssa=True: y_main = C2f.forward(x) → SSA.forward(x, y_main)</text>
+    <text x="600" y="328" class="label-xs" fill="#888">SSA progressive by layer: L2=Sobel only, L4=Sobel+SAConv(d=2), L6/L8=C3k+SSA(d=3)</text>
+  </svg>
+</div>
+
+</body>
+</html>

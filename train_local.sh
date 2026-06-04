@@ -77,7 +77,7 @@ echo "============================================"
 
 cd "${PROJECT_DIR}"
 
-YAML_PRR_V3="YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3.yaml"
+YAML_PRR_V3="YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-SSA-P1-NoSAC-FullC2f.yaml"
 
 case "${TRAINER_MODE}" in
     baseline)
