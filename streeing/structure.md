@@ -9,7 +9,7 @@ ultralytics/                  # Main package
 │   ├── models/               # Official model architecture YAMLs
 │   ├── solutions/            # Solution configs
 │   └── trackers/             # Tracker configs (BotSORT, ByteTrack)
-├── cfg_yolo11/               # Custom enhanced YOLO11 configs (100+)
+│                             # (main-line + ablation YAMLs live at repo root)
 │   ├── YOLO11-Attention/     # Attention mechanisms (CBAM, EMA, GAM, etc.)
 │   ├── YOLO11-Backbone/      # Backbone improvements
 │   ├── YOLO11-Conv改进/       # Conv modifications (DCNv3, DCNv4, ODConv)

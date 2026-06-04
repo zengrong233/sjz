@@ -65,24 +65,9 @@ from ultralytics.nn.modules import (
     v10Detect,
 )
 
-from ultralytics.nn.core11.HGNetv2 import C2f_HGNetv2, C3_HGNetv2, CPNHGNetv2, CSCHGNetv2, ReNLANHGNetv2
-from ultralytics.nn.core11.UniRepLK import C2f_UniRepLK, C3_UniRepLK, CPNUniRepLK, CSCUniRepLK, ReNLANUniRepLK
-from ultralytics.nn.core11.LSK import C2f_LSK, C3_LSK, CPNLSK, CSCLSK, ReNLANLSK
-from ultralytics.nn.core11.arconv import CARC
-from ultralytics.nn.core11.PinwheelConv import PinwheelCB, PinwheelConv
-from ultralytics.nn.core11.scconv import SCBottleneck
-
 from ultralytics.nn.core11.uav import DySample_,SPDConv,MFFF,FrequencyFocusedDownSampling,SemanticAlignmenCalibration, BottleNeck, BasicBlock_, P3Fusion
 from ultralytics.nn.core11.uav_block import ConvNormLayer, Blocks, RepC3_
-from ultralytics.nn.core11.repvit import RepVB
 from ultralytics.nn.core11.refocus_resample import RefocusSingle, P2P3RefocusResample
-
-from ultralytics.nn.core11.dcnv4 import CKDCNv4
-from ultralytics.nn.core11.dcnv3 import CDCNv3
-from ultralytics.nn.core11.ACmix import ACmix
-from ultralytics.nn.core11.odconv import ODConv
-from ultralytics.nn.core11.gc import CB2D
-# from ultralytics.nn.core11.cspnext import CSPNeXtLayer
 
 
 
@@ -1071,63 +1056,6 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             c2 = args[1] if args[3] else args[1] * 4
         elif m is nn.BatchNorm2d:
             args = [ch[f]]
-# -------------------------------------------------
-        elif m in [C3_RMB, CSRMBC, C2f_RMB, CPNRMB, ReNLANRMB]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [C3_RMB, CSRMBC, C2f_RMB, CPNRMB]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [CSCBiF, ReNLANBiF, CPNBiF, C3_Biformer, C2f_Biformer]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [CSCBiF, CPNBiF, C3_Biformer, C2f_Biformer]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [CSCFocalNeXt, ReNLANFocalNeXt, CPNFocalNeXt, C3_FocalNeXt, C2f_FocalNeXt]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [CSCFocalNeXt, CPNFocalNeXt, C3_FocalNeXt, C2f_FocalNeXt]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [FasterNeXt, CSCFasterNeXt, ReNLANFasterNeXt, C3_FasterNeXt, C2f_FasterNeXt]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [FasterNeXt, CSCFasterNeXt, C3_FasterNeXt, C2f_FasterNeXt]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [CPNGhost, CSCGhost, ReNLANGhost, C3_Ghost, C2f_Ghost]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [CPNGhost, CSCGhost, C3_Ghost, C2f_Ghost]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        # elif m in [EMA, ARConv, CARC]:
-        #     c1, c2 = ch[f], args[0]
-        #     if c2 != nc:  # if not output
-        #         c2 = make_divisible(min(c2, max_channels) * width, 8)
-        #     args = [c1, c2, *args[1:]]
-        #     if m in [EMA, CARC]:
-        #         args.insert(2, n)  # number of repeats
-        #         n = 1
-        elif m in [EMA]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [EMA]:
-                args.insert(2, n)  # number of repeats
-                n = 1
         elif m in [RepVGGBlock, RepBlock, SimConv, Transpose, SimSPPF]:
             c1, c2 = ch[f], args[0]
             if c2 != nc:
@@ -1136,124 +1064,11 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             if m in [RepBlock]:
                 args.insert(2, n)  # number of repeats
                 n = 1
-        elif m in [CSPDepthResELAN,CSPRepResELAN, CSPSDepthResELAN, SDepthMP, RepHDW, RepELANMS,RepELANMS2]:
-            c1, c2 = ch[f], args[0]
-            args = [c1, c2, *args[1:]]
-            args.insert(2, n)  # number of repeats
-            n = 1
-        elif m in [RepELANMSv2]:
-            c1, c2 = ch[f], args[0]
-            args = [c1, c2, *args[1:]]
-        elif m in [Stem,ConvWrapper, SimConvWrapper, Transpose]:
-            c1 = ch[f]
-            c2 = args[0]
-            args = [c1, c2, *args[1:]]
-        elif m in [AVG_down]:
-            c1 = ch[f]
-            c2 = c1
-        elif m in [MPRep]:
-            c1 = ch[f]
-            c2 = args[0]
-            c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-        elif m is BiFusion:
-            c2 = args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [[ch[x] for x in f][0:2], c2]
-        elif m is QARepNeXt:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m is QARepNeXt:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [CReToNeXt]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [CReToNeXt]:
-                args.insert(2, n)  # number of repeats
-                n = 1
         elif m in [ADown]:
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
             args = [c1, c2, *args[1:]]
-        elif m in [QARep, CSCQARep, ReNLANQARep, C3_QARep, C2f_QARep]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [QARep, CSCQARep, C3_QARep, C2f_QARep]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [CPNConvNeXtv2, CSCConvNeXtv2, ReNLANConvNeXtv2, C3_ConvNeXtv2, C2f_ConvNeXtv2]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [CPNConvNeXtv2, CSCConvNeXtv2, C3_ConvNeXtv2, C2f_ConvNeXtv2]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [CPNMobileViTB, CSCMobileViTB, ReNLANMobileViTB, C3_MobileViTB, C2f_MobileViTB]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [CPNMobileViTB, CSCMobileViTB, C3_MobileViTB, C2f_MobileViTB]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [CPNMVBv2, CSCMVBv2, ReNLANMVBv2, C3_MVBv2, C2f_MVBv2]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [CPNMVBv2, CSCMVBv2, C3_MVBv2, C2f_MVBv2]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [CPNMViTBv3, CSCMViTBv3, ReNLANMViTBv3, C3_MViTBv3, C2f_MViTBv3]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [CPNMViTBv3, CSCMViTBv3, C3_MViTBv3, C2f_MViTBv3]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [CPNRepLKBlock, CSCRepLKBlock, ReNLANRepLKBlock, C3_RepLKBlock, C2f_RepLKBlock]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [CPNRepLKBlock, CSCRepLKBlock, C3_RepLKBlock, C2f_RepLKBlock]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [CPNDenseB, CSCDenseB, ReNLANDenseB, C3_DenseB, C2f_DenseB]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [CPNDenseB, CSCDenseB, C3_DenseB, C2f_DenseB]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [CPNMSB, CSCMSB, ReNLANMSB, C3_MSB, C2f_MSB]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [CPNMSB, CSCMSB, C3_MSB, C2f_MSB]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [CPNGhostblockv2, CSCGhostblockv2, ReNLANGhostblockv2, C3_Ghostblockv2, C2f_Ghostblockv2]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [CPNGhostblockv2, CSCGhostblockv2, C3_Ghostblockv2, C2f_Ghostblockv2]:
-                args.insert(2, n)  # number of repeats
-                n = 1
         # elif m in (SimpleStem, VisionClueMerge, VSSBlock, XSSBlock):
         #     c1, c2 = ch[f], args[0]
         #     if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
@@ -1271,26 +1086,6 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 c3 = make_divisible(min(c3, max_channels) * width, 8)
                 c4 = make_divisible(min(c4, max_channels) * width, 8)
             args = [c1, c2, c3, c4, *args[3:]]
-        elif m in (SimAM, GAMAttention, CBAM, SKAttention, SOCA, ShuffleAttention):
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-        elif m is ASFF_2:
-            c1, c2 = [ch[f[0]], ch[f[1]]], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-        elif m is ASFF_3:
-            c1, c2 = [ch[f[0]], ch[f[1]], ch[f[2]]], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-        elif m is BasicBlock:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
         elif m in [low_FAM, LAF_h]:
             c2 = sum(ch[x] for x in f)
         elif m is LAF_px:
@@ -1314,108 +1109,10 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             c1 = ch[f]
             c2 = c1  # 修改后 TopBasicLayer 输出通道数 = 输入通道数
             args = [c1, *args]
-        elif m is SSFF:
-            c2 = sum(ch[x] for x in f)
-        elif m is ASPP:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-        elif m is BasicRFB:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-        elif m is SPPFCSPC:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-        elif m in [ResNet50vd,ResNet50vd_dcn,ResNet101vd,PPConvBlock,Res2net50]:
-            c2 = args[0]
-        elif m is CARAFE:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
         elif m in [DySample]:
             args = [ch[f], *args[0:]]
-        elif m is ReparamLKBlock:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m is ReparamLKBlock:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [stems, MBConvBlock]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-        elif m in [FusedMBConv, MBConv]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-        elif m in [CSwinTR, SwinTRX, SwinTRY, SwinTRZ, CSwinTRv2, SwinV2TRX, SwinV2TRY, SwinV2TRZ]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [CSwinTR, SwinTRX, SwinTRY, SwinTRZ, SwinV2TRX, SwinV2TRY, SwinV2TRZ, CSwinTRv2]:
-                args.insert(2, n)  # number of repeats
-                n = 1
         elif m in [DySample]:
             args = [ch[f], *args[0:]]
-        elif m in [C2f_HGNetv2, C3_HGNetv2, CPNHGNetv2, CSCHGNetv2, ReNLANHGNetv2]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [C2f_HGNetv2, C3_HGNetv2, CPNHGNetv2, CSCHGNetv2]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [C2f_UniRepLK, C3_UniRepLK, CPNUniRepLK, CSCUniRepLK, ReNLANUniRepLK]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [C2f_UniRepLK, C3_UniRepLK, CPNUniRepLK, CSCUniRepLK]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [CARC]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [CARC]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [C2f_LSK, C3_LSK, CPNLSK, CSCLSK, ReNLANLSK]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [C2f_LSK, C3_LSK, CPNLSK, CSCLSK]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [PinwheelCB, PinwheelConv]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [PinwheelCB]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m is SCBottleneck:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m is SCBottleneck:
-                args.insert(2, n)  # number of repeats
-                n = 1
         elif m in { DySample_ }:
             c2 = ch[f]
             args = [c2, *args]
@@ -1432,30 +1129,6 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             if m is RepC3_:
                 args.insert(2, n)  # number of repeats
                 n = 1
-        elif m is CKDCNv4:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m is CKDCNv4:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m is CDCNv3:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m is CDCNv3:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m in [CB2D]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-            if m in [CB2D]:
-                args.insert(2, n)  # number of repeats
-                n = 1
         # elif m is CSPNeXtLayer:
         #     c1, c2 = ch[f], args[0]
         #     if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
@@ -1464,21 +1137,6 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
         #     if m in [CSPNeXtLayer]:
         #         args.insert(2, n)  # number of repeats
         #         n = 1
-        elif m in [ACmix]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-        elif m in [ODConv]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
-        elif m in [RepVB]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, c2, *args[1:]]
         elif m in {MFFF}:
             c2 = ch[f]
             args = [c2]

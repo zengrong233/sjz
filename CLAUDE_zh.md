@@ -7,7 +7,7 @@
 这是一个**增强版Ultralytics YOLO11仓库**，包含官方YOLO11实现以及大量修改和改进。该仓库包括：
 
 - **核心YOLO11**：用于目标检测、分割、姿态估计和分类的官方Ultralytics实现
-- **增强配置**：在`ultralytics/cfg_yolo11/`中包含100+个自定义YAML配置，具有各种架构改进
+- **主线配置**：当前在用的检测器及其消融变体为根目录的 `YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-*.yaml` 文件
 - **自定义模块**：在`ultralytics/nn/core11/`和`ultralytics/nn/modules/`中的增强神经网络组件
 - **自定义损失函数**：在`ultralytics/utils/NewLoss/`中的高级损失函数
 - **训练数据集**：在`datasets/`中的3类自定义检测数据集样本
@@ -22,7 +22,7 @@
 - `ultralytics/utils/`：数据加载、指标、可视化等工具
 
 ### 增强组件
-- `ultralytics/cfg_yolo11/`：按改进类型组织的自定义YOLO11配置：
+- 根目录 `YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-*.yaml`：主线检测器及其消融变体（NoMFFF / NoPRR / CIoU / SSALite / LiteD1Only 等）
   - 注意力机制（CBAM、EMA、GAM等）
   - 骨干网络改进（ACMix、UAV等）
   - 卷积修改（DCNv3、DCNv4等）
@@ -50,7 +50,7 @@ yolo train model=yolo11n.pt data=coco8.yaml epochs=100 imgsz=640
 yolo train model=yolo11n.pt data=data_3c.yaml epochs=100 imgsz=640
 
 # 使用自定义配置的增强模型训练
-yolo train model=ultralytics/cfg_yolo11/YOLO11-多个创新点组合改进/YOLO11-HFAMPAN-AsDDet-NWD.yaml data=data_3c.yaml epochs=100 imgsz=640
+yolo train model=YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-SSA-P1-NoSAC-FullC2f-LiteD1R2-NWD-AIMLAux.yaml data=data_3c.yaml epochs=100 imgsz=640
 ```
 
 ### 验证和测试
@@ -118,7 +118,7 @@ yolo export model=yolo11n.pt format=torchscript
 ## 开发说明
 
 ### 自定义模型配置
-该仓库在`ultralytics/cfg_yolo11/`中包含100+个按改进类型组织的自定义YAML配置。这些配置可以直接用于训练增强的YOLO11模型。
+当前在用的检测器及其消融变体为根目录的 `YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-*.yaml` 文件，主线配置为 `YOLO11-HFAMPAN-AsDDet-NWD-SmallObject-PRR-v3-SSA-P1-NoSAC-FullC2f-LiteD1R2-NWD-AIMLAux.yaml`。（原 `ultralytics/cfg_yolo11/` 中 100+ 个与主线无关的改进示例配置已删除，以保持代码树聚焦主线。）
 
 ### 数据集结构
 包含的示例数据集遵循YOLO格式：
